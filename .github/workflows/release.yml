@@ -1,0 +1,151 @@
+name: Build and Release
+
+on:
+  schedule:
+    # 12時間ごと（UTC 00:00 と 12:00）
+    - cron: "0 0,12 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.check.outputs.has_changes }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for changes since last release
+        id: check
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            CHANGES=$(git log "${LAST_TAG}..HEAD" --oneline -- src/ package.json bunfig.toml tsconfig.json)
+            if [ -n "$CHANGES" ]; then
+              echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Determine version
+        id: version
+        if: steps.check.outputs.has_changes == 'true'
+        run: |
+          VERSION=$(jq -r .version package.json)
+          TIMESTAMP=$(date -u +%Y%m%d%H%M)
+          echo "version=v${VERSION}+${TIMESTAMP}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: check-changes
+    if: needs.check-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: bun-linux-x64
+            suffix: linux-x64
+          - target: bun-linux-arm64
+            suffix: linux-arm64
+          - target: bun-darwin-arm64
+            suffix: darwin-arm64
+          - target: bun-darwin-x64
+            suffix: darwin-x64
+          - target: bun-windows-x64
+            suffix: win-x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        run: bunx tsc --noEmit
+
+      - name: Compile CLI
+        run: bun build --compile --target=${{ matrix.target }} src/cli/main.ts --outfile dist/radius-${{ matrix.suffix }}
+
+      - name: Compile Daemon
+        run: bun build --compile --target=${{ matrix.target }} src/daemon/main.ts --outfile dist/radiusd-${{ matrix.suffix }}
+
+      - name: Add exe extension for Windows
+        if: matrix.suffix == 'win-x64'
+        run: |
+          mv dist/radius-win-x64 dist/radius-win-x64.exe
+          mv dist/radiusd-win-x64 dist/radiusd-win-x64.exe
+
+      - name: Create archive
+        run: |
+          cd dist
+          if [[ "${{ matrix.suffix }}" == "win-x64" ]]; then
+            zip radius-${{ matrix.suffix }}.zip radius-${{ matrix.suffix }}.exe radiusd-${{ matrix.suffix }}.exe
+          else
+            chmod +x radius-${{ matrix.suffix }} radiusd-${{ matrix.suffix }}
+            tar czf radius-${{ matrix.suffix }}.tar.gz radius-${{ matrix.suffix }} radiusd-${{ matrix.suffix }}
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: radius-${{ matrix.suffix }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+
+  release:
+    needs: [check-changes, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            BODY=$(git log --oneline -20 -- src/)
+          else
+            BODY=$(git log "${LAST_TAG}..HEAD" --oneline -- src/)
+          fi
+          {
+            echo "body<<EOF"
+            echo "## Changes"
+            echo ""
+            echo "$BODY"
+            echo ""
+            echo "## Artifacts"
+            echo ""
+            echo "| Platform | Archive |"
+            echo "|---|---|"
+            echo "| Linux x64 | radius-linux-x64.tar.gz |"
+            echo "| Linux arm64 | radius-linux-arm64.tar.gz |"
+            echo "| macOS Apple Silicon | radius-darwin-arm64.tar.gz |"
+            echo "| macOS Intel | radius-darwin-x64.tar.gz |"
+            echo "| Windows x64 | radius-win-x64.zip |"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.check-changes.outputs.version }}
+          name: Radius ${{ needs.check-changes.outputs.version }}
+          body: ${{ steps.notes.outputs.body }}
+          files: artifacts/*
+          draft: false
+          prerelease: false
