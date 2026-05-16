@@ -17,14 +17,47 @@ Radius is a daemon-based code editing system designed for AI coding agents. It p
 
 ## Installation
 
-### Prerequisites
+### Quick Install
 
-- [Bun](https://bun.sh/) runtime (v1.0+)
-- Unix-like OS (Linux, macOS)
+**Linux / macOS:**
+```bash
+curl -fsSL https://radius-ai.pages.dev/install.sh | bash
+```
 
-### Build from source
+**Windows (PowerShell):**
+```powershell
+irm https://radius-ai.pages.dev/install.ps1 | iex
+```
+
+The installer will:
+- Download the latest release for your platform
+- Extract binaries to `~/.radius/bin` (customizable with `$RADIUS_INSTALL_DIR`)
+- Add to PATH automatically
+
+### Manual Installation
+
+Download pre-built binaries from [GitHub Releases](https://github.com/ihasq/radius/releases):
 
 ```bash
+# Linux x64
+curl -LO https://github.com/ihasq/radius/releases/latest/download/radius-linux-x64.tar.gz
+tar xzf radius-linux-x64.tar.gz
+sudo mv radius-linux-x64 radiusd-linux-x64 /usr/local/bin/
+sudo ln -s /usr/local/bin/radius-linux-x64 /usr/local/bin/radius
+sudo ln -s /usr/local/bin/radiusd-linux-x64 /usr/local/bin/radiusd
+```
+
+### Build from Source
+
+**Prerequisites:**
+- [Bun](https://bun.sh/) runtime (v1.0+)
+- Unix-like OS (Linux, macOS) or Windows
+
+```bash
+# Clone repository
+git clone https://github.com/ihasq/radius.git
+cd radius
+
 # Install dependencies
 bun install
 

@@ -11,7 +11,7 @@ hero:
       link: /guide/
     - theme: alt
       text: View on GitHub
-      link: https://github.com/user/radius
+      link: https://github.com/ihasq/radius
 
 features:
   - icon: 🎯
