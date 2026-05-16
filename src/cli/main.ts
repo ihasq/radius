@@ -1,11 +1,12 @@
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
 import { sendRequest } from "../ipc/client";
 import { getSocketPath, getPidPath } from "../shared/paths";
 import { findCommand, generateUsage, buildRequestWithTag } from "./registry";
 import type { IpcRequest } from "../shared/types";
 import { readStdin, isStdinAvailable } from "../shared/stdin";
+import pkg from "../../package.json";
 
 /**
  * PIDファイルに記録されたプロセスが生存しているか確認する。
@@ -37,9 +38,35 @@ async function isDaemonRunning(): Promise<boolean> {
 async function ensureDaemon(): Promise<boolean> {
   if (await isDaemonRunning()) return true;
 
-  // 既に別のCLIがspawn中の可能性がある。短いリトライで待つ。
-  const daemonScript = resolve(import.meta.dir, "../daemon/main.ts");
-  const child = spawn("bun", ["run", daemonScript], {
+  // radiusd の解決優先順:
+  // 1. radius バイナリと同一ディレクトリの radiusd
+  // 2. PATH 上の radiusd
+  // 3. 開発モード (bun run)
+
+  let daemonCmd: string;
+  let daemonArgs: string[] = [];
+
+  // 1. 同一ディレクトリの radiusd を探す
+  const radiusdName = process.platform === "win32" ? "radiusd.exe" : "radiusd";
+  const radiusdPath = resolve(dirname(process.execPath), radiusdName);
+
+  if (existsSync(radiusdPath)) {
+    // バイナリ配布モード
+    daemonCmd = radiusdPath;
+  } else {
+    // 2. PATH 上の radiusd を試す（which相当の判定）
+    try {
+      const { execSync } = require("node:child_process");
+      execSync(`${process.platform === "win32" ? "where" : "which"} ${radiusdName}`, { stdio: "ignore" });
+      daemonCmd = radiusdName;
+    } catch {
+      // 3. 開発モード
+      daemonCmd = "bun";
+      daemonArgs = ["run", resolve(import.meta.dir, "../daemon/main.ts")];
+    }
+  }
+
+  const child = spawn(daemonCmd, daemonArgs, {
     stdio: "ignore",
     detached: true,
   });
@@ -60,6 +87,18 @@ async function ensureDaemon(): Promise<boolean> {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const commandName = args[0];
+
+  // A: --help / --version フラグ
+  if (commandName === "--help" || commandName === "-h") {
+    console.log(generateUsage());
+    console.log("  daemon stop                             デーモンの停止");
+    process.exit(0);
+  }
+
+  if (commandName === "--version" || commandName === "-v") {
+    console.log(pkg.version);
+    process.exit(0);
+  }
 
   // A: usage 表示
   if (!commandName) {
