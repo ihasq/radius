@@ -7,6 +7,10 @@ export interface IpcRequest {
   command: string;
   /** コマンド固有の引数。構造はコマンドごとに異なる。 */
   args: Record<string, unknown>;
+  /** 会話巻き戻り検知用のドッグタグ（任意）。 */
+  tag?: string | null;
+  /** 現在の作業ディレクトリ（任意）。 */
+  cwd?: string;
 }
 
 /**
@@ -19,4 +23,8 @@ export interface IpcResponse {
   data?: unknown;
   /** 異常時のエラーメッセージ。 */
   error?: string;
+  /** 新しいドッグタグ（任意）。 */
+  tag?: string;
+  /** 巻き戻り警告メッセージ（任意）。 */
+  warnings?: string[];
 }

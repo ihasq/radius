@@ -4,7 +4,7 @@ import { encode, FrameDecoder } from "./framing";
 import type { IpcRequest, IpcResponse } from "../shared/types";
 
 type CommandHandler = (
-  args: Record<string, unknown>
+  request: IpcRequest
 ) => Promise<IpcResponse> | IpcResponse;
 
 export class IpcServer {
@@ -57,7 +57,7 @@ export class IpcServer {
             }
 
             try {
-              const response = await handler(request.args);
+              const response = await handler(request);
               socket.write(encode(response));
             } catch (err) {
               socket.write(

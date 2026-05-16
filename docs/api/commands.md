@@ -2,6 +2,36 @@
 
 Complete reference for all Radius commands.
 
+## Global Options
+
+### --tag
+
+Session tracking tag for conversation rewind detection.
+
+**Usage:**
+```bash
+radius <command> [args] --tag <tag>
+```
+
+**Behavior:**
+- If tag matches current session: proceed normally
+- If tag is from an older sequence: auto-undo intervening operations
+- If tag is unknown: reset session with warning
+
+**Response includes:**
+```json
+{
+  "ok": true,
+  "data": "...",
+  "tag": "e486-newTag12",
+  "warnings": ["warning: conversation rewind detected..."]
+}
+```
+
+**Note:** `ping` does not support `--tag`.
+
+---
+
 ## System Commands
 
 ### ping

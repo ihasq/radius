@@ -19,6 +19,8 @@ export interface CommandDef {
    *  バリデーション失敗時は usage 文字列を throw する。
    *  @param stdin - --stdin指定時の標準入力内容（任意） */
   buildRequest(args: string[], cwd: string, stdin?: string): IpcRequest;
+  /** --tag オプションをサポートするかどうか（デフォルト: true）。 */
+  supportsTag?: boolean;
 }
 
 /** 引数パーサ（既存の parseArgs と同等）。 */
@@ -40,12 +42,71 @@ function parseArgs(args: string[]): Record<string, unknown> {
   return result;
 }
 
+/**
+ * --tag オプションを除外した引数を返す。
+ * @param args 元の引数配列
+ * @returns { filtered: 除外後の引数, tag: 抽出されたタグ値 }
+ */
+function extractTag(args: string[]): { filtered: string[]; tag?: string | null } {
+  const filtered: string[] = [];
+  let tag: string | null | undefined = undefined;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--tag") {
+      // --tag <value> の形式
+      if (i + 1 < args.length && !args[i + 1].startsWith("--")) {
+        tag = args[i + 1];
+        i++; // 次の引数をスキップ
+      } else {
+        // --tag のみの場合は null として扱う（初回呼び出しの意図）
+        tag = null;
+      }
+    } else {
+      filtered.push(arg);
+    }
+  }
+
+  return { filtered, tag };
+}
+
+/**
+ * CommandDef.buildRequest をラップし、--tag と cwd を IpcRequest に追加する。
+ * @param cmd コマンド定義
+ * @param args 元の引数配列
+ * @param cwd 現在のワーキングディレクトリ
+ * @param stdin 標準入力（任意）
+ * @returns IpcRequest（tag と cwd を含む）
+ */
+export function buildRequestWithTag(
+  cmd: CommandDef,
+  args: string[],
+  cwd: string,
+  stdin?: string
+): IpcRequest {
+  // --tag オプションをサポートしない場合はそのまま構築
+  if (cmd.supportsTag === false) {
+    return cmd.buildRequest(args, cwd, stdin);
+  }
+
+  // --tag を抽出
+  const { filtered, tag } = extractTag(args);
+  const request = cmd.buildRequest(filtered, cwd, stdin);
+
+  // tag と cwd を追加
+  request.tag = tag;
+  request.cwd = cwd;
+
+  return request;
+}
+
 /** コマンド定義一覧。 */
 export const commands: CommandDef[] = [
   {
     name: "ping",
     description: "デーモンとの疎通確認",
     usage: "radius ping",
+    supportsTag: false,
     buildRequest: (_args, _cwd, _stdin) => ({ command: "ping", args: {} }),
   },
   {

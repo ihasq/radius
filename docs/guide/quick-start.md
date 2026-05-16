@@ -111,6 +111,26 @@ radius undo
 radius redo
 ```
 
+## Session Tracking (LLM Integration)
+
+Radius tracks conversation state with "dog tags" for LLM integration:
+
+```bash
+# Each command returns a tag
+radius str-replace src/main.ts --old "A" --new "B"
+# Output includes: [tag: e486-abc12345]
+
+# Pass tag to subsequent commands
+radius str-replace src/main.ts --old "B" --new "C" --tag e486-abc12345
+# Output includes: [tag: e486-def67890]
+
+# If conversation rewinds (old tag used), auto-undo occurs
+radius view src/main.ts --tag e486-abc12345
+# warning: conversation rewind detected. Undoing 1 operation(s).
+```
+
+This ensures file state stays synchronized with LLM conversation history.
+
 ## Conflict Resolution
 
 When you have Git merge conflicts:

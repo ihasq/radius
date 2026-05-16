@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { sendRequest } from "../ipc/client";
 import { getSocketPath, getPidPath } from "../shared/paths";
-import { findCommand, generateUsage } from "./registry";
+import { findCommand, generateUsage, buildRequestWithTag } from "./registry";
 import type { IpcRequest } from "../shared/types";
 import { readStdin, isStdinAvailable } from "../shared/stdin";
 
@@ -108,7 +108,7 @@ async function main(): Promise<void> {
   // A: リクエスト構築
   let request: IpcRequest;
   try {
-    request = cmdDef.buildRequest(args.slice(1), process.cwd(), stdinContent);
+    request = buildRequestWithTag(cmdDef, args.slice(1), process.cwd(), stdinContent);
   } catch (usageMessage) {
     console.error(usageMessage);
     process.exit(1);
@@ -127,13 +127,25 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // A: 出力
+  // A: 警告出力
+  if (response.warnings && response.warnings.length > 0) {
+    for (const warning of response.warnings) {
+      console.error(warning);
+    }
+  }
+
+  // A: データ出力
   if (response.data !== undefined) {
     if (typeof response.data === "string") {
       console.log(response.data);
     } else {
       console.log(JSON.stringify(response.data, null, 2));
     }
+  }
+
+  // A: タグ出力
+  if (response.tag) {
+    console.log(`\n[tag: ${response.tag}]`);
   }
 }
 

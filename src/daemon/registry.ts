@@ -17,9 +17,10 @@ import { handleCreate } from "../core/commands/create";
 import { handleInsert } from "../core/commands/insert";
 import { handleLspList } from "../core/commands/lsp";
 import { findProjectRoot } from "../shared/project";
-import type { IpcResponse } from "../shared/types";
+import type { IpcRequest, IpcResponse } from "../shared/types";
 import type { LspManager } from "../lsp/manager";
 import type { HistoryTracker } from "../core/history/tracker";
+import type { SessionManager } from "../core/session/manager";
 import type { ExtensionRegistry } from "../extension-host/registry";
 import type { ExtensionLoader } from "../extension-host/loader";
 import type { BufferManager } from "../core/buffer/manager";
@@ -28,6 +29,7 @@ import type { BufferManager } from "../core/buffer/manager";
 export interface DaemonContext {
   lspManager: LspManager;
   getHistoryTracker(projectRoot: string): HistoryTracker;
+  getSessionManager(projectRoot: string): SessionManager;
   extensionRegistry: ExtensionRegistry;
   extensionLoader: ExtensionLoader;
   bufferManager: BufferManager;
@@ -36,148 +38,160 @@ export interface DaemonContext {
 /** ハンドラ定義。 */
 export interface HandlerDef {
   command: string;
-  handler: (args: Record<string, unknown>, ctx: DaemonContext) => Promise<IpcResponse>;
+  handler: (request: IpcRequest, ctx: DaemonContext) => Promise<IpcResponse>;
+  /** セッション検証を行うかどうか（デフォルト: false）。 */
+  requiresSession?: boolean;
 }
 
 /** ハンドラ定義一覧。 */
 export const handlers: HandlerDef[] = [
   {
     command: "ping",
-    handler: async () => {
+    handler: async (_request) => {
       return { ok: true, data: "pong" };
     },
   },
   {
     command: "shutdown",
-    handler: async () => {
+    handler: async (_request) => {
       // shutdown は daemon/main.ts で特別に処理される
       return { ok: true, data: "shutting down" };
     },
   },
   {
     command: "read-var",
-    handler: async (args, ctx) => {
-      return await handleReadVar(args, ctx.lspManager, ctx.bufferManager);
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      return await handleReadVar(request.args, ctx.lspManager, ctx.bufferManager);
     },
   },
   {
     command: "modify-var",
-    handler: async (args, ctx) => {
-      const filePath = args.file as string | undefined;
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      const filePath = request.args.file as string | undefined;
       if (!filePath) {
         return { ok: false, error: "Missing required arg: file" };
       }
       const projectRoot = findProjectRoot(filePath);
       const historyTracker = ctx.getHistoryTracker(projectRoot);
-      return await handleModifyVar(args, ctx.lspManager, historyTracker, ctx.bufferManager);
+      return await handleModifyVar(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
     },
   },
   {
     command: "undo",
-    handler: async (args, ctx) => {
-      const cwd = args.cwd as string | undefined;
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      const cwd = request.args.cwd as string | undefined;
       if (!cwd) {
         return { ok: false, error: "Missing required arg: cwd" };
       }
       const projectRoot = findProjectRoot(cwd);
       const historyTracker = ctx.getHistoryTracker(projectRoot);
-      return await handleUndo(args, ctx.lspManager, historyTracker);
+      return await handleUndo(request.args, ctx.lspManager, historyTracker);
     },
   },
   {
     command: "redo",
-    handler: async (args, ctx) => {
-      const cwd = args.cwd as string | undefined;
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      const cwd = request.args.cwd as string | undefined;
       if (!cwd) {
         return { ok: false, error: "Missing required arg: cwd" };
       }
       const projectRoot = findProjectRoot(cwd);
       const historyTracker = ctx.getHistoryTracker(projectRoot);
-      return await handleRedo(args, ctx.lspManager, historyTracker);
+      return await handleRedo(request.args, ctx.lspManager, historyTracker);
     },
   },
   {
     command: "solve-conflict",
-    handler: async (args, ctx) => {
-      const filePath = args.file as string | undefined;
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      const filePath = request.args.file as string | undefined;
       if (!filePath) {
         return { ok: false, error: "Missing required arg: file" };
       }
       const projectRoot = findProjectRoot(filePath);
       const historyTracker = ctx.getHistoryTracker(projectRoot);
-      return await handleSolveConflict(args, ctx.lspManager, historyTracker, ctx.bufferManager);
+      return await handleSolveConflict(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
     },
   },
   {
     command: "rename-file",
-    handler: async (args, ctx) => {
-      return await handleRenameFile(args, ctx);
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      return await handleRenameFile(request.args, ctx);
     },
   },
   {
     command: "ext-install",
-    handler: async (args, ctx) => {
-      return await handleExtInstall(args, ctx.extensionRegistry, ctx.extensionLoader);
+    handler: async (request, ctx) => {
+      return await handleExtInstall(request.args, ctx.extensionRegistry, ctx.extensionLoader);
     },
   },
   {
     command: "ext-list",
-    handler: async (args, ctx) => {
-      return await handleExtList(args, ctx.extensionRegistry);
+    handler: async (request, ctx) => {
+      return await handleExtList(request.args, ctx.extensionRegistry);
     },
   },
   {
     command: "ext-remove",
-    handler: async (args, ctx) => {
-      return await handleExtRemove(args, ctx.extensionRegistry);
+    handler: async (request, ctx) => {
+      return await handleExtRemove(request.args, ctx.extensionRegistry);
     },
   },
   {
     command: "view",
-    handler: async (args, ctx) => {
-      return await handleView(args, ctx.bufferManager);
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      return await handleView(request.args, ctx.bufferManager);
     },
   },
   {
     command: "str-replace",
-    handler: async (args, ctx) => {
-      const filePath = args.file as string | undefined;
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      const filePath = request.args.file as string | undefined;
       if (!filePath) {
         return { ok: false, error: "Missing required arg: file" };
       }
       const projectRoot = findProjectRoot(filePath);
       const historyTracker = ctx.getHistoryTracker(projectRoot);
-      return await handleStrReplace(args, ctx.lspManager, historyTracker, ctx.bufferManager);
+      return await handleStrReplace(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
     },
   },
   {
     command: "create",
-    handler: async (args, ctx) => {
-      const filePath = args.file as string | undefined;
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      const filePath = request.args.file as string | undefined;
       if (!filePath) {
         return { ok: false, error: "Missing required arg: file" };
       }
       const projectRoot = findProjectRoot(filePath);
       const historyTracker = ctx.getHistoryTracker(projectRoot);
-      return await handleCreate(args, ctx.lspManager, historyTracker, ctx.bufferManager);
+      return await handleCreate(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
     },
   },
   {
     command: "insert",
-    handler: async (args, ctx) => {
-      const filePath = args.file as string | undefined;
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      const filePath = request.args.file as string | undefined;
       if (!filePath) {
         return { ok: false, error: "Missing required arg: file" };
       }
       const projectRoot = findProjectRoot(filePath);
       const historyTracker = ctx.getHistoryTracker(projectRoot);
-      return await handleInsert(args, ctx.lspManager, historyTracker, ctx.bufferManager);
+      return await handleInsert(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
     },
   },
   {
     command: "lsp-list",
-    handler: async (args, ctx) => {
-      return await handleLspList(args, ctx.extensionLoader);
+    handler: async (request, ctx) => {
+      return await handleLspList(request.args, ctx.extensionLoader);
     },
   },
 ];

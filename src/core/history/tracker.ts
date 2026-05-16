@@ -238,6 +238,23 @@ export class HistoryTracker {
     return result;
   }
 
+  /** 最新の Changeset ID を取得（セッション管理用）。 */
+  async getLatestChangesetId(): Promise<string | null> {
+    await this.init();
+
+    try {
+      const state = this.loadState();
+      if (state.pointer < state.oldest || state.total === 0) {
+        return null;
+      }
+
+      const changeset = this.loadChangeset(state.pointer);
+      return changeset ? changeset.id : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** state.json の読み込み */
   private loadState(): State {
     const content = readFileSync(this.statePath, "utf-8");
