@@ -1,0 +1,184 @@
+:root {
+  --vp-font-family-base: 'Inter', sans-serif;
+  --vp-font-family-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Brand colors */
+  --vp-c-brand-1: #8b9aff;
+  --vp-c-brand-2: #a3b0ff;
+  --vp-c-brand-3: #6b7cff;
+  --vp-c-brand-soft: rgba(139, 154, 255, 0.14);
+}
+
+/* Dark theme (default) */
+.dark {
+  --vp-c-bg: #02030f;
+  --vp-c-bg-alt: #080a1a;
+  --vp-c-bg-elv: #0d1025;
+  --vp-c-bg-soft: #0d1025;
+
+  --vp-c-text-1: #f2f3ff;
+  --vp-c-text-2: rgba(242, 243, 255, 0.78);
+  --vp-c-text-3: rgba(242, 243, 255, 0.56);
+
+  --vp-c-divider: rgba(242, 243, 255, 0.12);
+  --vp-c-divider-light: rgba(242, 243, 255, 0.06);
+
+  --vp-c-gutter: #02030f;
+
+  --vp-code-block-bg: #080a1a;
+  --vp-code-tab-bg: #0d1025;
+  --vp-code-tab-text-color: rgba(242, 243, 255, 0.78);
+  --vp-code-tab-active-text-color: #f2f3ff;
+  --vp-code-tab-hover-text-color: #f2f3ff;
+  --vp-code-copy-code-bg: #0d1025;
+  --vp-code-copy-code-hover-bg: #151935;
+  --vp-code-copy-code-active-text: #f2f3ff;
+
+  --vp-c-default-1: #f2f3ff;
+  --vp-c-default-2: rgba(242, 243, 255, 0.78);
+  --vp-c-default-3: rgba(242, 243, 255, 0.56);
+  --vp-c-default-soft: rgba(242, 243, 255, 0.06);
+
+  --vp-sidebar-bg-color: #02030f;
+  --vp-nav-bg-color: rgba(2, 3, 15, 0.8);
+
+  --vp-button-brand-bg: #6b7cff;
+  --vp-button-brand-hover-bg: #8b9aff;
+  --vp-button-brand-active-bg: #5a6aee;
+  --vp-button-brand-text: #02030f;
+}
+
+/* Light theme - also dark themed */
+:root {
+  --vp-c-bg: #02030f;
+  --vp-c-bg-alt: #080a1a;
+  --vp-c-bg-elv: #0d1025;
+  --vp-c-bg-soft: #0d1025;
+
+  --vp-c-text-1: #f2f3ff;
+  --vp-c-text-2: rgba(242, 243, 255, 0.78);
+  --vp-c-text-3: rgba(242, 243, 255, 0.56);
+
+  --vp-c-divider: rgba(242, 243, 255, 0.12);
+  --vp-c-divider-light: rgba(242, 243, 255, 0.06);
+
+  --vp-c-gutter: #02030f;
+
+  --vp-code-block-bg: #080a1a;
+  --vp-code-tab-bg: #0d1025;
+  --vp-code-tab-text-color: rgba(242, 243, 255, 0.78);
+  --vp-code-tab-active-text-color: #f2f3ff;
+  --vp-code-tab-hover-text-color: #f2f3ff;
+  --vp-code-copy-code-bg: #0d1025;
+  --vp-code-copy-code-hover-bg: #151935;
+  --vp-code-copy-code-active-text: #f2f3ff;
+
+  --vp-c-default-1: #f2f3ff;
+  --vp-c-default-2: rgba(242, 243, 255, 0.78);
+  --vp-c-default-3: rgba(242, 243, 255, 0.56);
+  --vp-c-default-soft: rgba(242, 243, 255, 0.06);
+
+  --vp-sidebar-bg-color: #02030f;
+  --vp-nav-bg-color: rgba(2, 3, 15, 0.8);
+
+  --vp-button-brand-bg: #6b7cff;
+  --vp-button-brand-hover-bg: #8b9aff;
+  --vp-button-brand-active-bg: #5a6aee;
+  --vp-button-brand-text: #02030f;
+}
+
+/* Hero section */
+.VPHero .name {
+  background: linear-gradient(135deg, #8b9aff 0%, #f2f3ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.VPHero .text {
+  color: var(--vp-c-text-2);
+}
+
+.VPHero .tagline {
+  color: var(--vp-c-text-3);
+}
+
+/* Feature cards */
+.VPFeature {
+  background: var(--vp-c-bg-soft) !important;
+  border: 1px solid var(--vp-c-divider) !important;
+}
+
+.VPFeature:hover {
+  border-color: var(--vp-c-brand-1) !important;
+}
+
+/* Sidebar */
+.VPSidebar {
+  background: var(--vp-c-bg) !important;
+}
+
+/* Nav */
+.VPNav {
+  background: var(--vp-nav-bg-color) !important;
+  backdrop-filter: blur(12px);
+}
+
+/* Code blocks */
+.vp-code-group .tabs label {
+  background: transparent;
+}
+
+div[class*='language-'] {
+  background: var(--vp-code-block-bg) !important;
+}
+
+/* Inline code */
+:not(pre) > code {
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-brand-1);
+}
+
+/* Links */
+.vp-doc a {
+  color: var(--vp-c-brand-1);
+}
+
+.vp-doc a:hover {
+  color: var(--vp-c-brand-2);
+}
+
+/* Tables */
+.vp-doc table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.vp-doc th,
+.vp-doc td {
+  border: 1px solid var(--vp-c-divider);
+  padding: 8px 16px;
+}
+
+.vp-doc th {
+  background: var(--vp-c-bg-soft);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--vp-c-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--vp-c-divider);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--vp-c-text-3);
+}

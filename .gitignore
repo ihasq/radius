@@ -45,3 +45,7 @@ target/
 
 # Test project artifacts
 *.bak
+
+# VitePress
+docs/.vitepress/dist
+docs/.vitepress/cache

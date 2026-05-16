@@ -9,7 +9,8 @@
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.8",
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "vitepress": "^1.6.4"
   },
   "dependencies": {
     "adm-zip": "^0.5.17",
