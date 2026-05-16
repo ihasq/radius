@@ -38,7 +38,7 @@ detect_platform() {
 }
 
 get_latest_version() {
-  VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep -m1 '"tag_name"' | cut -d'"' -f4)
+  VERSION=$(curl -fsSI "https://github.com/${REPO}/releases/latest" | grep -i "^location:" | grep -oE '[^/]+$' | tr -d '\r\n')
   if [ -z "$VERSION" ]; then
     error "Failed to fetch latest version from GitHub."
   fi

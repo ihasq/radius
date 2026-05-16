@@ -20,9 +20,21 @@ switch ($Arch) {
 # Get latest version
 Write-Info "Fetching latest version..."
 try {
-    $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -Headers @{ "User-Agent" = "radius-installer" }
-    $Version = $Release.tag_name
+    $Response = Invoke-WebRequest -Uri "https://github.com/$Repo/releases/latest" -MaximumRedirection 0 -ErrorAction SilentlyContinue -UseBasicParsing 2>&1
+    $Location = $Response.Headers.Location
+    if (-not $Location) {
+        $Location = $Response.Headers["Location"]
+    }
+    $Version = ($Location -split '/')[-1]
 } catch {
+    try {
+        $Location = $_.Exception.Response.Headers.Location.ToString()
+        $Version = ($Location -split '/')[-1]
+    } catch {
+        Write-Err "Failed to fetch latest version from GitHub."
+    }
+}
+if (-not $Version) {
     Write-Err "Failed to fetch latest version from GitHub."
 }
 
