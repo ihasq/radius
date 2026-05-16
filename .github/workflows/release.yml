@@ -79,12 +79,6 @@ jobs:
       - name: Compile Daemon
         run: bun build --compile --target=${{ matrix.target }} src/daemon/main.ts --outfile dist/radiusd-${{ matrix.suffix }}
 
-      - name: Add exe extension for Windows
-        if: matrix.suffix == 'win-x64'
-        run: |
-          mv dist/radius-win-x64 dist/radius-win-x64.exe
-          mv dist/radiusd-win-x64 dist/radiusd-win-x64.exe
-
       - name: Create archive
         run: |
           cd dist
