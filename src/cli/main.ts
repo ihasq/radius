@@ -1,3 +1,11 @@
+/**
+ * Radius CLI
+ *
+ * Hotfix 2026-05-17:
+ * - Added --help / --version flags
+ * - Fixed daemon binary resolution for production deployments
+ */
+
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
