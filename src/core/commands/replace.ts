@@ -23,7 +23,7 @@ export async function handleReplace(
   let replacement: string | undefined;
   let isRegex = args.regex === true;
   let ignoreCase = args["ignore-case"] === true;
-  let maxReplacements: number | undefined = typeof args.max === "number" ? args.max : undefined;
+  let maxReplacements: number | undefined = args.max ? parseInt(String(args.max), 10) : undefined;
 
   // --stdin オプション処理
   if (args.stdin && stdin) {

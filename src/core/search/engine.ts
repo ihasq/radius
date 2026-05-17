@@ -120,15 +120,33 @@ export function replaceInContent(
 
   const regex = buildRegExp(opts);
   let newContent = content;
-  let replaced = 0;
 
-  newContent = newContent.replace(regex, (match) => {
-    if (replaced < replaceCount) {
-      replaced++;
-      return actualReplacement;
-    }
-    return match;
-  });
+  // maxReplacements が指定されていない場合は全置換（キャプチャグループ対応）
+  if (!maxReplacements || maxReplacements >= matches.length) {
+    newContent = content.replace(regex, actualReplacement);
+  } else {
+    // maxReplacements が指定されている場合は手動でカウント
+    let replaced = 0;
+    newContent = content.replace(regex, (match, ...args) => {
+      if (replaced < replaceCount) {
+        replaced++;
+        // キャプチャグループがある場合の手動置換
+        // args: [capture1, capture2, ..., offset, string, groups]
+        // 最後の2つ（offset, string）または3つ（offset, string, groups）を除いた残りがキャプチャグループ
+        const captures = args.slice(0, -2); // offset と string を除外
+        let result = actualReplacement;
+        // $1, $2, ... をキャプチャグループで置換
+        for (let i = 0; i < captures.length; i++) {
+          const captureValue = captures[i] !== undefined ? captures[i] : '';
+          result = result.replace(new RegExp(`\\$${i + 1}`, 'g'), captureValue);
+        }
+        // $& (マッチ全体) を置換
+        result = result.replace(/\$&/g, match);
+        return result;
+      }
+      return match;
+    });
+  }
 
   return {
     newContent,

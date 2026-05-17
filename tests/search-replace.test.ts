@@ -251,7 +251,6 @@ describe("replace", () => {
 
   test("replacement $ is literal when --regex not set", async () => {
     const testFile = join(tmpDir, "src/test-dollar.ts");
-    writeFileSync(testFile, "const price = 10;\n");
 
     const r1 = await radius([
       "create",
@@ -259,6 +258,8 @@ describe("replace", () => {
       "--content",
       "const price = 10;",
     ], { cwd: tmpDir });
+
+    expect(r1.exitCode).toBe(0);
 
     const r2 = await radius([
       "replace",
