@@ -11,11 +11,13 @@ Radius is a daemon-based code editing system designed for AI coding agents. It p
 - **Undo/redo history**: Per-project change tracking with full file restoration
 - **Git conflict resolution**: Parse and resolve merge conflicts programmatically
 - **Import-aware file renaming**: Automatically update import statements across the project
+- **Multi-agent support**: Tag-chain based agent identification with conflict detection and resolution
 - **Session management**: Dog tag-based conversation tracking with automatic rewind detection
 - **VSCode extension support**: Install extensions from Open VSX registry for language support
 - **External change detection**: Automatically detect and handle external file modifications
 - **Memory-efficient buffering**: LRU cache with Piece Tree text buffer for large file handling
 - **Configurable LSP servers**: User-defined LSP server mappings via JSON configuration
+- **Debug logging**: Comprehensive logging via RADIUS_DEBUG environment variable
 
 ## Installation
 
@@ -144,6 +146,54 @@ radius ext remove <publisher.name>    # Remove extension
 radius lsp list    # Show registered LSP servers and their sources
 ```
 
+### Multi-Agent Support
+
+Radius supports multiple AI agents working on the same project concurrently. Each command returns a tag that identifies the agent's chain of operations.
+
+```bash
+# Agent A starts working (no tag = new chain)
+radius str-replace file.ts --old "foo" --new "bar"
+# Returns: radius-tag: abc1-XXXXXXXX
+
+# Agent A continues with returned tag
+radius str-replace file.ts --old "baz" --new "qux" --tag abc1-XXXXXXXX
+
+# Agent B starts working concurrently (no tag = new chain)
+# If editing same lines as Agent A, will require --reason flag
+radius str-replace file.ts --old "bar" --new "newbar" --reason "fixing typo"
+```
+
+#### Conflict Detection and Resolution
+
+When agents edit overlapping regions, Radius detects conflicts and notifies affected chains:
+
+```bash
+# List pending notifications for your chain
+radius list-notifications --tag <your-tag>
+
+# Accept another agent's changes
+radius accept-change --conflict <conflict-id> --tag <your-tag>
+
+# Challenge another agent's changes
+radius challenge-change --conflict <conflict-id> --reason "breaks tests" --tag <your-tag>
+```
+
+### Debug Logging
+
+Enable debug output via the `RADIUS_DEBUG` environment variable:
+
+```bash
+# Enable all debug output
+RADIUS_DEBUG=1 radius ping
+
+# Enable specific modules only
+RADIUS_DEBUG=ipc,session radius view file.ts
+
+# Available modules: ipc, cmd, session, lsp, buffer, history, conflict
+```
+
+Debug output goes to stderr. For daemon-side logs, check `~/.radius/daemon-debug.log`.
+
 ## Configuration
 
 ### LSP servers
@@ -194,6 +244,9 @@ radius (CLI) ─── Unix Socket IPC ───> radiusd (Daemon)
 - **LspManager**: Per-project LSP client lifecycle management
 - **ExtensionLoader**: VSCode extension loading with static extraction + activate() fallback
 - **HistoryTracker**: Per-project changeset history for undo/redo operations
+- **SessionManager**: Tag-chain based session tracking with rewind detection
+- **ChangeLedger**: Records all changes with timestamps for conflict detection
+- **ConflictManager**: Detects overlapping edits and manages notifications between agents
 
 ## Development
 
@@ -210,11 +263,12 @@ src/
     imports/     # Import statement scanning and rewriting
     conflict/    # Git conflict parsing
     graph/       # Mermaid graph generation (imports, refs, calls)
-    session/     # Dog tag-based session management
+    session/     # Tag-chain session management with rewind detection
+    agent/       # Multi-agent support (ledger, conflict detection)
   lsp/           # LSP client and transport
   extension-host/# VSCode extension loading
   ipc/           # Unix socket IPC layer
-  shared/        # Shared utilities and colors
+  shared/        # Shared utilities, colors, debug logging
 ```
 
 ### Build
@@ -222,6 +276,15 @@ src/
 ```bash
 bun run build    # Build both radius and radiusd binaries
 ```
+
+### Testing
+
+```bash
+bun run test       # Run all tests (CI mode)
+bun run test:dev   # Run tests, stop on first failure (development mode)
+```
+
+Tests run in parallel with isolated `RADIUS_HOME` directories for each test file.
 
 ### Type checking
 
