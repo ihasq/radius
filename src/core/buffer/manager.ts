@@ -214,6 +214,23 @@ export class BufferManager {
   }
 
   /**
+   * バッファの内容を完全に置換する。
+   */
+  setContent(filePath: string, content: string): void {
+    const buffer = this.open(filePath);
+    const currentContent = this.getContentFromBuffer(buffer);
+
+    // 全削除して全挿入
+    buffer.delete(0, currentContent.length);
+    buffer.insert(0, content);
+
+    const entry = this.buffers.get(filePath);
+    if (entry) {
+      entry.dirty = true;
+    }
+  }
+
+  /**
    * PieceTreeBaseから直接内容を取得する（内部ヘルパー）。
    */
   private getContentFromBuffer(buffer: PieceTreeBase): string {
