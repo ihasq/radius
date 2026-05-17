@@ -21,6 +21,7 @@ Radius is a daemon-based code editing system designed for AI coding agents. It p
 - **Memory-efficient buffering**: LRU cache with Piece Tree text buffer for large file handling
 - **Configurable LSP servers**: User-defined LSP server mappings via JSON configuration
 - **Debug logging**: Comprehensive logging via RADIUS_DEBUG environment variable
+- **Automatic updates**: Self-updating system with Ed25519 signature verification (12-hour check interval)
 
 ## Installation
 
@@ -88,6 +89,17 @@ radius ping
 # Stop daemon
 radius daemon stop
 ```
+
+### Upgrading
+
+Radius automatically checks for updates every 12 hours and installs them in the background. To manually upgrade:
+
+```bash
+# Force immediate update check and installation
+radius upgrade
+```
+
+The update system uses Ed25519 signature verification to ensure binary integrity. Old versions are preserved in `~/.radius/bin/<hash>/` for rollback if needed.
 
 ### Commands
 

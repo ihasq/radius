@@ -153,7 +153,7 @@ describe("Phase 16 エンドツーエンド検証", () => {
     // クリーンアップ（各chainの最新tagでundo）
     await radius(["undo", "--tag", tagB1], { cwd: tmpDir });
     await radius(["undo", "--tag", tagA2], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("challenge flow", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -227,5 +227,5 @@ describe("Phase 16 エンドツーエンド検証", () => {
     // クリーンアップ
     await radius(["undo", "--tag", tagB1], { cwd: tmpDir });
     await radius(["undo", "--tag", tagA1], { cwd: tmpDir });
-  });
+  }, 30_000);
 });

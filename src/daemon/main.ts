@@ -510,6 +510,9 @@ for (const handlerDef of handlers) {
 
         // 成功時: タグを生成
         if (response.ok) {
+          // 初回タグかどうか（currentSeqが0の状態で最初のタグを発行する場合）
+          const isFirstTag = currentSeq === 0;
+
           let newTag: string;
           if (isWriteCommand) {
             // 書き込みコマンド: 無条件に advance() を呼び出す
@@ -533,6 +536,7 @@ for (const handlerDef of handlers) {
             ...response,
             data: finalData,
             tag: newTag,
+            isFirstTag,
             warnings: allWarnings.length > 0 ? allWarnings : undefined,
           };
         }
@@ -571,19 +575,43 @@ async function startDaemon(): Promise<void> {
 
 // ==================== ENTRY POINT ====================
 
-// Check for --exec flag to determine mode
-const isCliMode = process.argv.includes("--exec");
+// Check for --verify-signature flag (used by radiusd shell script for signature verification)
+if (process.argv.includes("--verify-signature")) {
+  const idx = process.argv.indexOf("--verify-signature");
+  const [gzPath, sigPath, pubPath] = process.argv.slice(idx + 1);
 
-if (isCliMode) {
-  // CLI mode: behave like radius CLI
-  runCliMode().catch((err) => {
-    console.error(`fatal: ${err.message}`);
+  if (!gzPath || !sigPath || !pubPath) {
+    console.error("usage: radiusd --verify-signature <gz-file> <sig-file> <pub-file>");
     process.exit(1);
+  }
+
+  import("../shared/crypto").then(async ({ verifySignature }) => {
+    try {
+      const gz = readFileSync(gzPath);
+      const sig = readFileSync(sigPath);
+      const pub = JSON.parse(readFileSync(pubPath, "utf-8"));
+      const valid = await verifySignature(gz, sig, pub);
+      process.exit(valid ? 0 : 1);
+    } catch (err) {
+      console.error(`signature verification error: ${err}`);
+      process.exit(1);
+    }
   });
 } else {
-  // Daemon mode: start IPC server
-  startDaemon().catch((err) => {
-    console.error(`[radiusd] Failed to start daemon: ${err}`);
-    process.exit(1);
-  });
+  // Check for --exec flag to determine mode
+  const isCliMode = process.argv.includes("--exec");
+
+  if (isCliMode) {
+    // CLI mode: behave like radius CLI
+    runCliMode().catch((err) => {
+      console.error(`fatal: ${err.message}`);
+      process.exit(1);
+    });
+  } else {
+    // Daemon mode: start IPC server
+    startDaemon().catch((err) => {
+      console.error(`[radiusd] Failed to start daemon: ${err}`);
+      process.exit(1);
+    });
+  }
 }

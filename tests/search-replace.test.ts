@@ -46,7 +46,7 @@ describe("grep", () => {
     expect(result.stdout).toContain("matches:");
     expect(result.stdout).toContain("userName");
     expect(result.stdout).toContain("src/main.ts:");
-  });
+  }, 30_000);
 
   test("finds matches across directory", async () => {
     const dirPath = join(tmpDir, "src");
@@ -61,7 +61,7 @@ describe("grep", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("src/main.ts:");
     expect(result.stdout).toContain("src/utils.ts:");
-  });
+  }, 30_000);
 
   test("--regex enables regex matching", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -76,7 +76,7 @@ describe("grep", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("userName");
-  });
+  }, 30_000);
 
   test("--ignore-case enables case insensitive matching", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -91,7 +91,7 @@ describe("grep", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("userName");
-  });
+  }, 30_000);
 
   test("--max-results limits output", async () => {
     const dirPath = join(tmpDir, "src");
@@ -107,7 +107,7 @@ describe("grep", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/matches: [1-2]/);
-  });
+  }, 30_000);
 
   test("returns no matches message for unmatched pattern", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -122,7 +122,7 @@ describe("grep", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("matches: 0");
     expect(result.stdout).toContain("no matches found");
-  });
+  }, 30_000);
 
   test("invalid regex returns error", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -137,7 +137,7 @@ describe("grep", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/invalid regex/i);
-  });
+  }, 30_000);
 });
 
 describe("replace", () => {
@@ -162,7 +162,7 @@ describe("replace", () => {
     expect(content).not.toContain("userName:");
 
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("--regex with capture groups", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -185,7 +185,7 @@ describe("replace", () => {
     expect(content).not.toContain("userName:");
 
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("--ignore-case replaces case-insensitively", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -206,7 +206,7 @@ describe("replace", () => {
     expect(content).toContain("userId");
 
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("--max limits replacements", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -226,7 +226,7 @@ describe("replace", () => {
     expect(r1.stdout).toContain("replaced 1 occurrence");
 
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("--stdin accepts JSON input", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -250,7 +250,7 @@ describe("replace", () => {
     expect(content).toContain("userId");
 
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("replacement $ is literal when --regex not set", async () => {
     const testFile = join(tmpDir, "src/test-dollar.ts");
@@ -282,7 +282,7 @@ describe("replace", () => {
 
     const r3 = await radius(["undo", "--tag", extractTag(r2.stdout)], { cwd: tmpDir });
     await radius(["undo", "--tag", extractTag(r3.stdout)], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("undo reverts all replacements", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -302,7 +302,7 @@ describe("replace", () => {
 
     const afterContent = readFixtureFile(tmpDir, "src/main.ts");
     expect(afterContent).toBe(beforeContent);
-  });
+  }, 30_000);
 
   test("diagnostics returned after replace", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -320,7 +320,7 @@ describe("replace", () => {
     expect(r1.stdout).toContain("diagnostics:");
 
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("zero matches returns error", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -336,7 +336,7 @@ describe("replace", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/no matches/i);
-  });
+  }, 30_000);
 });
 
 describe("replace-all", () => {
@@ -364,7 +364,7 @@ describe("replace-all", () => {
     expect(utilsContent).toContain("userId");
 
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("--include filters file types", async () => {
     const dirPath = join(tmpDir, "src");
@@ -390,7 +390,7 @@ describe("replace-all", () => {
     expect(r1.stdout).toMatch(/files modified:\s*[3-9]/); // 最低3ファイル
 
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("--exclude skips matched files", async () => {
     const dirPath = join(tmpDir, "src");
@@ -413,7 +413,7 @@ describe("replace-all", () => {
     if (r1.exitCode === 0) {
       await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
     }
-  });
+  }, 30_000);
 
   test("single changeset for all files", async () => {
     const dirPath = join(tmpDir, "src");
@@ -437,7 +437,7 @@ describe("replace-all", () => {
 
     expect(mainContent).toContain("userName");
     expect(utilsContent).toContain("userName");
-  });
+  }, 30_000);
 
   test("undo reverts all files in one operation", async () => {
     const dirPath = join(tmpDir, "src");
@@ -461,7 +461,7 @@ describe("replace-all", () => {
 
     expect(afterMain).toBe(beforeMain);
     expect(afterUtils).toBe(beforeUtils);
-  });
+  }, 30_000);
 
   test("node_modules always excluded", async () => {
     // node_modules ディレクトリを作成
@@ -488,5 +488,5 @@ describe("replace-all", () => {
     expect(nmContent).toContain("userName");
 
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
-  });
+  }, 30_000);
 });

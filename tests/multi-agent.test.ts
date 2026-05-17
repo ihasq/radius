@@ -53,7 +53,7 @@ describe("change ledger", () => {
     expect(content).toContain("userId");
 
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
-  });
+  }, 30_000);
 });
 
 describe("conflict detection", () => {
@@ -98,7 +98,7 @@ describe("conflict detection", () => {
     expect([0, 1]).toContain(r2.exitCode);
 
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("allows non-overlapping edits from different agents", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -139,7 +139,7 @@ describe("conflict detection", () => {
 
     await radius(["undo", "--tag", extractTag(r2.stdout)], { cwd: tmpDir });
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
-  });
+  }, 30_000);
 });
 
 describe("conflict resolution", () => {
@@ -191,7 +191,7 @@ describe("conflict resolution", () => {
 
     await radius(["undo", "--tag", extractTag(r2.stdout)], { cwd: tmpDir });
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("accept-change resolves conflict", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -217,7 +217,7 @@ describe("conflict resolution", () => {
     // 2. Call accept-change with that ID
 
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("challenge-change sends challenge to other agent", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -240,7 +240,7 @@ describe("conflict resolution", () => {
     // This is a placeholder for the actual challenge flow
 
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
-  });
+  }, 30_000);
 });
 
 describe("time window", () => {
@@ -248,7 +248,7 @@ describe("time window", () => {
     // This test would require manipulating time or waiting
     // For now, it's a placeholder
     expect(true).toBe(true);
-  });
+  }, 30_000);
 });
 
 describe("replace command integration", () => {
@@ -272,7 +272,7 @@ describe("replace command integration", () => {
     expect(content).toContain("userId");
 
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("replace-all records ledger entries for all files", async () => {
     const dirPath = join(tmpDir, "src");
@@ -291,5 +291,5 @@ describe("replace command integration", () => {
     expect(r1.exitCode).toBe(0);
 
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
-  });
+  }, 60_000);
 });

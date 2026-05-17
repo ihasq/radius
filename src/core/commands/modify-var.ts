@@ -344,8 +344,8 @@ export async function handleModifyVar(
   }
 
   const diagnosticsSection = diagnosticsOutputs.length > 0
-    ? `\n\ndiagnostics:${diagnosticsOutputs.join("\n")}`
-    : "";
+    ? `\ndiagnostics:${diagnosticsOutputs.join("\n")}`
+    : "\ndiagnostics: ok";
 
   return { ok: true, data: output + diagnosticsSection };
 }

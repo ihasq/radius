@@ -1,0 +1,11 @@
+{
+  "version": "0.99.0",
+  "hash": "f1e90393d461",
+  "timestamp": "2026-05-17T19:06:45.793Z",
+  "assets": {
+    "linux-x64": {
+      "url": "linux-x64.gz",
+      "sha256": "f1e90393d461d4b3e36c47278669f6f1d8a7cff6de403e3f09cdb535093113cd"
+    }
+  }
+}

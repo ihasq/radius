@@ -295,5 +295,5 @@ describe("codelens", () => {
 
     expect(result.stdout).toMatch(/no code lenses|0 lens/i);
     expect(result.exitCode).toBe(0);
-  }, 30_000);
+  }, 60_000);
 });

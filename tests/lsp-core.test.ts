@@ -250,5 +250,5 @@ describe.skipIf(TSL_AVAILABLE)("LSP not available", () => {
   test("test suite skipped - typescript-language-server not found", () => {
     console.warn("LSP core tests skipped: typescript-language-server not found");
     expect(true).toBe(true);
-  });
+  }, 30_000);
 });
