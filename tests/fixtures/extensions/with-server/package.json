@@ -1,0 +1,17 @@
+{
+  "name": "server-extension",
+  "displayName": "Server Extension",
+  "version": "1.0.0",
+  "publisher": "test",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "mocklang",
+        "extensions": [".mock"]
+      }
+    ]
+  }
+}

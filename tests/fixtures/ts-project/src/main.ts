@@ -1,3 +1,5 @@
+import { calc } from "./lib/helpers";
+
 export const userName: string = "default_user";
 
 export function greet(): string {
@@ -14,4 +16,8 @@ export function processData(data: string[]): string {
 
 export function initialize(): void {
   console.log("Initializing application...");
+}
+
+export function circleArea(r: number): number {
+  return calc(r);
 }
