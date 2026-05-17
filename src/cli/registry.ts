@@ -407,6 +407,115 @@ export const commands: CommandDef[] = [
       };
     },
   },
+  {
+    name: "grep",
+    description: "パターン検索",
+    usage: "radius grep <file-or-dir> --pattern <query> [--regex] [--ignore-case] [--max-results N]",
+    buildRequest: (args, cwd, _stdin) => {
+      const target = args[0];
+      if (!target) {
+        throw "usage: radius grep <file-or-dir> --pattern <query> [--regex] [--ignore-case] [--max-results N]";
+      }
+      const absTarget = resolve(cwd, target);
+      const parsed = parseArgs(args.slice(1));
+      if (!parsed.pattern) {
+        throw "usage: radius grep <file-or-dir> --pattern <query> [--regex] [--ignore-case] [--max-results N]";
+      }
+      return {
+        command: "grep",
+        args: {
+          target: absTarget,
+          pattern: parsed.pattern,
+          regex: parsed.regex,
+          "ignore-case": parsed["ignore-case"],
+          "max-results": parsed["max-results"],
+        },
+      };
+    },
+  },
+  {
+    name: "replace",
+    description: "単一ファイルのパターン一括置換",
+    usage: "radius replace <file> --pattern <query> --replacement <string> [--regex] [--ignore-case] [--max N] [--stdin]",
+    buildRequest: (args, cwd, stdin) => {
+      const file = args[0];
+      if (!file) {
+        throw "usage: radius replace <file> --pattern <query> --replacement <string> [--regex] [--ignore-case] [--max N] [--stdin]";
+      }
+      const absFile = resolve(cwd, file);
+      const parsed = parseArgs(args.slice(1));
+
+      // --stdin モード: JSON形式で全パラメータを受け取る
+      if (parsed.stdin !== undefined) {
+        return {
+          command: "replace",
+          args: {
+            file: absFile,
+            stdin: true,
+          },
+          stdin,
+        };
+      }
+
+      if (!parsed.pattern || parsed.replacement === undefined) {
+        throw "usage: radius replace <file> --pattern <query> --replacement <string> [--regex] [--ignore-case] [--max N]";
+      }
+
+      return {
+        command: "replace",
+        args: {
+          file: absFile,
+          pattern: parsed.pattern,
+          replacement: parsed.replacement,
+          regex: parsed.regex,
+          "ignore-case": parsed["ignore-case"],
+          max: parsed.max,
+        },
+      };
+    },
+  },
+  {
+    name: "replace-all",
+    description: "複数ファイルのパターン一括置換",
+    usage: "radius replace-all <dir> --pattern <query> --replacement <string> [--regex] [--ignore-case] [--include <glob>] [--exclude <glob>] [--stdin]",
+    buildRequest: (args, cwd, stdin) => {
+      const dir = args[0];
+      if (!dir) {
+        throw "usage: radius replace-all <dir> --pattern <query> --replacement <string> [--regex] [--ignore-case] [--include <glob>] [--exclude <glob>]";
+      }
+      const absDir = resolve(cwd, dir);
+      const parsed = parseArgs(args.slice(1));
+
+      // --stdin モード: JSON形式で全パラメータを受け取る
+      if (parsed.stdin !== undefined) {
+        return {
+          command: "replace-all",
+          args: {
+            dir: absDir,
+            stdin: true,
+          },
+          stdin,
+        };
+      }
+
+      if (!parsed.pattern || parsed.replacement === undefined) {
+        throw "usage: radius replace-all <dir> --pattern <query> --replacement <string> [--regex] [--ignore-case] [--include <glob>] [--exclude <glob>]";
+      }
+
+      return {
+        command: "replace-all",
+        args: {
+          dir: absDir,
+          pattern: parsed.pattern,
+          replacement: parsed.replacement,
+          regex: parsed.regex,
+          "ignore-case": parsed["ignore-case"],
+          include: parsed.include,
+          exclude: parsed.exclude,
+        },
+      };
+    },
+  },
 ];
 
 /**

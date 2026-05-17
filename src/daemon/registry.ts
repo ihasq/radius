@@ -17,6 +17,9 @@ import { handleCreate } from "../core/commands/create";
 import { handleInsert } from "../core/commands/insert";
 import { handleLspList } from "../core/commands/lsp";
 import { handleGraph } from "../core/commands/graph";
+import { handleGrep } from "../core/commands/grep";
+import { handleReplace } from "../core/commands/replace";
+import { handleReplaceAll } from "../core/commands/replace-all";
 import { findProjectRoot } from "../shared/project";
 import type { IpcRequest, IpcResponse } from "../shared/types";
 import type { LspManager } from "../lsp/manager";
@@ -215,6 +218,29 @@ export const handlers: HandlerDef[] = [
       }
       const projectRoot = findProjectRoot(filePath);
       return await handleGraph(request, ctx.lspManager, ctx.bufferManager, projectRoot);
+    },
+  },
+  {
+    command: "grep",
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      return await handleGrep(request);
+    },
+  },
+  {
+    command: "replace",
+    requiresSession: true,
+    isWriteCommand: true,
+    handler: async (request, ctx) => {
+      return await handleReplace(request, ctx);
+    },
+  },
+  {
+    command: "replace-all",
+    requiresSession: true,
+    isWriteCommand: true,
+    handler: async (request, ctx) => {
+      return await handleReplaceAll(request, ctx);
     },
   },
 ];
