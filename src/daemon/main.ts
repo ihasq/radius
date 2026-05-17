@@ -347,7 +347,6 @@ for (const handlerDef of handlers) {
 
         // Hotfix: タグからチェーンIDを解決
         const tag = request.tag;
-        const chainId = await SessionManager.resolveChainId(projectRoot, tag);
 
         // Hotfix: --agent の非推奨警告
         const deprecationWarnings: string[] = [];
@@ -355,11 +354,60 @@ for (const handlerDef of handlers) {
           deprecationWarnings.push("warning: --agent is deprecated. Agent identity is determined by --tag.");
         }
 
+        // 0. プロジェクトレベルのタグ検証
+        const isWriteCommand = handlerDef.isWriteCommand ?? false;
+        if (tag === undefined) {
+          // 台帳に最近の記録があるかチェック
+          const ledger = getLedger(projectRoot);
+          const hasRecentActivity = await ledger.hasRecentActivity(30);
+          if (hasRecentActivity) {
+            if (isWriteCommand) {
+              // 書き込みコマンドの場合は拒否
+              return {
+                ok: false,
+                error: "error: --tag is required. Pass the tag from your previous radius output.",
+                warnings: deprecationWarnings.length > 0 ? deprecationWarnings : undefined,
+              };
+            } else {
+              // 読み取り専用コマンドの場合は警告を追加
+              deprecationWarnings.push("warning: --tag not provided.");
+            }
+          }
+        }
+
+        const chainId = await SessionManager.resolveChainId(projectRoot, tag);
+
+        // デバッグログ
+        if (process.env.RADIUS_DEBUG) {
+          console.log(`[daemon] command=${request.command}, tag=${tag}, chainId=${chainId}`);
+        }
+
         // チェーン別のセッション・履歴マネージャを取得
         const sessionManager = getSessionManager(projectRoot, chainId);
         const historyTracker = getHistoryTracker(projectRoot, chainId);
 
-        // Phase 16-1: 通知配信（全コマンド実行前）
+        // 1. タグ検証と巻き戻し
+        const { warnings, currentSeq, rejected } = await sessionManager.validateAndRewind(
+          request.tag,
+          historyTracker,
+          lspManager,
+          isWriteCommand
+        );
+
+        // 拒否された場合はエラーを返す（即座に）
+        if (rejected) {
+          const allWarnings = [...deprecationWarnings, ...warnings];
+          return {
+            ok: false,
+            error: warnings[0],
+            warnings: allWarnings.length > 0 ? allWarnings : undefined,
+          };
+        }
+
+        // chainIdをrequestに追加（レジストリハンドラーで使用）
+        (request as any).chainId = chainId;
+
+        // 2. 通知配信（全コマンド実行前）
         const notificationMessages: string[] = [];
         const conflictManager = getConflictManager(projectRoot);
         const notifications = await conflictManager.getPendingNotifications(chainId);
@@ -374,24 +422,7 @@ for (const handlerDef of handlers) {
           notificationMessages.push("");
         }
 
-        // タグ検証と巻き戻し
-        const isWriteCommand = handlerDef.isWriteCommand ?? false;
-        const { warnings, currentSeq, rejected } = await sessionManager.validateAndRewind(
-          request.tag,
-          historyTracker,
-          lspManager,
-          isWriteCommand
-        );
-
-        // 拒否された場合はエラーを返す
-        if (rejected) {
-          return {
-            ok: false,
-            error: warnings[0],
-          };
-        }
-
-        // Phase 16-2: 書き込みコマンドの事前コンフリクト検知（修正5: 復元）
+        // 3. 書き込みコマンドの事前コンフリクト検知
         if (isWriteCommand) {
           const ledger = getLedger(projectRoot);
 
@@ -449,10 +480,10 @@ for (const handlerDef of handlers) {
           }
         }
 
-        // 実ハンドラを呼び出し
+        // 4. 実ハンドラを呼び出し
         const response = await handlerDef.handler(request, context);
 
-        // Phase 16-3: 書き込みコマンドの事後処理（台帳記録）
+        // 5. 書き込みコマンドの事後処理（台帳記録）
         if (response.ok && isWriteCommand && response.changes) {
           const ledger = getLedger(projectRoot);
           const reason = request.args.reason as string | undefined;

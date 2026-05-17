@@ -8,13 +8,12 @@
 import type { IpcRequest, IpcResponse } from "../../shared/types";
 import type { DaemonContext } from "../../daemon/registry";
 import { findProjectRoot } from "../../shared/project";
-import { SessionManager } from "../session/manager";
 
 export async function handleChallengeChange(
   request: IpcRequest,
   ctx: DaemonContext
 ): Promise<IpcResponse> {
-  const { args, cwd, tag } = request;
+  const { args, cwd } = request;
 
   const conflictId = args.conflict as string | undefined;
   const reason = args.reason as string | undefined;
@@ -30,7 +29,7 @@ export async function handleChallengeChange(
 
   // プロジェクトルートとチェーンIDを取得
   const projectRoot = findProjectRoot(cwd || process.cwd());
-  const chainId = await SessionManager.resolveChainId(projectRoot, tag);
+  const chainId = (request as any).chainId as string;
 
   const conflictManager = ctx.getConflictManager(projectRoot);
 

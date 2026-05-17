@@ -11,7 +11,6 @@ import { replaceInContent, type SearchOptions } from "../search/engine";
 import { collectDiagnostics, formatDiagnostics } from "../../lsp/diagnostics";
 import { findProjectRoot } from "../../shared/project";
 import { marker as colorMarker } from "../../shared/colors";
-import { SessionManager } from "../session/manager";
 
 export async function handleReplace(
   request: IpcRequest,
@@ -91,7 +90,7 @@ export async function handleReplace(
 
   // Changeset記録
   const projectRoot = findProjectRoot(cwd || process.cwd());
-  const chainId = await SessionManager.resolveChainId(projectRoot, request.tag);
+  const chainId = (request as any).chainId as string;
   const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
 
   const changeset = {

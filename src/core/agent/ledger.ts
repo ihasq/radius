@@ -174,4 +174,22 @@ export class ChangeLedger {
     await this.init();
     return this.entries.find((e) => e.id === entryId);
   }
+
+  /**
+   * 指定時間範囲内に最近の活動があるかチェックする。
+   */
+  async hasRecentActivity(withinMinutes: number = DEFAULT_TIME_WINDOW_MINUTES): Promise<boolean> {
+    await this.init();
+
+    const cutoffTime = Date.now() - withinMinutes * 60 * 1000;
+
+    for (const entry of this.entries) {
+      const entryTime = new Date(entry.timestamp).getTime();
+      if (entryTime >= cutoffTime) {
+        return true;
+      }
+    }
+
+    return false;
+  }
 }

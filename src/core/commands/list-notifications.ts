@@ -8,17 +8,16 @@
 import type { IpcRequest, IpcResponse } from "../../shared/types";
 import type { DaemonContext } from "../../daemon/registry";
 import { findProjectRoot } from "../../shared/project";
-import { SessionManager } from "../session/manager";
 
 export async function handleListNotifications(
   request: IpcRequest,
   ctx: DaemonContext
 ): Promise<IpcResponse> {
-  const { cwd, tag } = request;
+  const { cwd } = request;
 
   // プロジェクトルートとチェーンIDを取得
   const projectRoot = findProjectRoot(cwd || process.cwd());
-  const chainId = await SessionManager.resolveChainId(projectRoot, tag);
+  const chainId = (request as any).chainId as string;
 
   const conflictManager = ctx.getConflictManager(projectRoot);
 

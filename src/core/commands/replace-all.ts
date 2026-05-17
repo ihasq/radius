@@ -13,7 +13,6 @@ import { findFiles, type GlobOptions } from "../search/glob";
 import { collectDiagnostics, formatDiagnostics, type DiagnosticReport } from "../../lsp/diagnostics";
 import { findProjectRoot } from "../../shared/project";
 import { marker as colorMarker } from "../../shared/colors";
-import { SessionManager } from "../session/manager";
 
 export async function handleReplaceAll(
   request: IpcRequest,
@@ -147,7 +146,7 @@ export async function handleReplaceAll(
 
   // Changeset記録（単一のChangesetに全ファイルの変更を記録）
   const projectRoot = findProjectRoot(cwd || process.cwd());
-  const chainId = await SessionManager.resolveChainId(projectRoot, request.tag);
+  const chainId = (request as any).chainId as string;
   const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
 
   const changeset = {

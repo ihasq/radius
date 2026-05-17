@@ -15,7 +15,6 @@ import type { Changeset, FileChange } from "../history/types";
 import type { IpcRequest, IpcResponse } from "../../shared/types";
 import type { DaemonContext } from "../../daemon/registry";
 import { filepath, muted } from "../../shared/colors";
-import { SessionManager } from "../session/manager";
 
 /**
  * rename-file コマンドのエントリポイント。
@@ -58,7 +57,7 @@ export async function handleRenameFile(
 
   // 4. プロジェクトルート取得
   const projectRoot = findProjectRoot(oldAbsPath);
-  const chainId = await SessionManager.resolveChainId(projectRoot, request.tag);
+  const chainId = (request as any).chainId as string;
   const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
 
   // 5. 参照元を収集
