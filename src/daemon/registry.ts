@@ -1,5 +1,6 @@
 /**
  * Daemon ハンドラレジストリ。
+ * Hotfix: タグチェーンベースのエージェント識別
  *
  * ハンドラ登録を宣言的に行う。
  */
@@ -20,20 +21,27 @@ import { handleGraph } from "../core/commands/graph";
 import { handleGrep } from "../core/commands/grep";
 import { handleReplace } from "../core/commands/replace";
 import { handleReplaceAll } from "../core/commands/replace-all";
+import { handleAcceptChange } from "../core/commands/accept-change";
+import { handleChallengeChange } from "../core/commands/challenge-change";
+import { handleListNotifications } from "../core/commands/list-notifications";
 import { findProjectRoot } from "../shared/project";
+import { SessionManager } from "../core/session/manager";
 import type { IpcRequest, IpcResponse } from "../shared/types";
 import type { LspManager } from "../lsp/manager";
 import type { HistoryTracker } from "../core/history/tracker";
-import type { SessionManager } from "../core/session/manager";
 import type { ExtensionRegistry } from "../extension-host/registry";
 import type { ExtensionLoader } from "../extension-host/loader";
 import type { BufferManager } from "../core/buffer/manager";
+import type { ChangeLedger } from "../core/agent/ledger";
+import type { ConflictManager } from "../core/agent/conflict";
 
 /** デーモンコンテキスト。 */
 export interface DaemonContext {
   lspManager: LspManager;
-  getHistoryTracker(projectRoot: string): HistoryTracker;
-  getSessionManager(projectRoot: string): SessionManager;
+  getHistoryTracker(projectRoot: string, chainId: string): HistoryTracker;
+  getSessionManager(projectRoot: string, chainId: string): SessionManager;
+  getLedger(projectRoot: string): ChangeLedger;
+  getConflictManager(projectRoot: string): ConflictManager;
   extensionRegistry: ExtensionRegistry;
   extensionLoader: ExtensionLoader;
   bufferManager: BufferManager;
@@ -81,7 +89,8 @@ export const handlers: HandlerDef[] = [
         return { ok: false, error: "Missing required arg: file" };
       }
       const projectRoot = findProjectRoot(filePath);
-      const historyTracker = ctx.getHistoryTracker(projectRoot);
+      const chainId = await SessionManager.resolveChainId(projectRoot, request.tag);
+      const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
       return await handleModifyVar(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
     },
   },
@@ -95,7 +104,8 @@ export const handlers: HandlerDef[] = [
         return { ok: false, error: "Missing required arg: cwd" };
       }
       const projectRoot = findProjectRoot(cwd);
-      const historyTracker = ctx.getHistoryTracker(projectRoot);
+      const chainId = await SessionManager.resolveChainId(projectRoot, request.tag);
+      const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
       return await handleUndo(request.args, ctx.lspManager, historyTracker);
     },
   },
@@ -109,7 +119,8 @@ export const handlers: HandlerDef[] = [
         return { ok: false, error: "Missing required arg: cwd" };
       }
       const projectRoot = findProjectRoot(cwd);
-      const historyTracker = ctx.getHistoryTracker(projectRoot);
+      const chainId = await SessionManager.resolveChainId(projectRoot, request.tag);
+      const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
       return await handleRedo(request.args, ctx.lspManager, historyTracker);
     },
   },
@@ -123,7 +134,8 @@ export const handlers: HandlerDef[] = [
         return { ok: false, error: "Missing required arg: file" };
       }
       const projectRoot = findProjectRoot(filePath);
-      const historyTracker = ctx.getHistoryTracker(projectRoot);
+      const chainId = await SessionManager.resolveChainId(projectRoot, request.tag);
+      const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
       return await handleSolveConflict(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
     },
   },
@@ -170,7 +182,8 @@ export const handlers: HandlerDef[] = [
         return { ok: false, error: "Missing required arg: file" };
       }
       const projectRoot = findProjectRoot(filePath);
-      const historyTracker = ctx.getHistoryTracker(projectRoot);
+      const chainId = await SessionManager.resolveChainId(projectRoot, request.tag);
+      const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
       return await handleStrReplace(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
     },
   },
@@ -184,7 +197,8 @@ export const handlers: HandlerDef[] = [
         return { ok: false, error: "Missing required arg: file" };
       }
       const projectRoot = findProjectRoot(filePath);
-      const historyTracker = ctx.getHistoryTracker(projectRoot);
+      const chainId = await SessionManager.resolveChainId(projectRoot, request.tag);
+      const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
       return await handleCreate(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
     },
   },
@@ -198,7 +212,8 @@ export const handlers: HandlerDef[] = [
         return { ok: false, error: "Missing required arg: file" };
       }
       const projectRoot = findProjectRoot(filePath);
-      const historyTracker = ctx.getHistoryTracker(projectRoot);
+      const chainId = await SessionManager.resolveChainId(projectRoot, request.tag);
+      const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
       return await handleInsert(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
     },
   },
@@ -241,6 +256,29 @@ export const handlers: HandlerDef[] = [
     isWriteCommand: true,
     handler: async (request, ctx) => {
       return await handleReplaceAll(request, ctx);
+    },
+  },
+  {
+    command: "accept-change",
+    requiresSession: true,
+    isWriteCommand: true,
+    handler: async (request, ctx) => {
+      return await handleAcceptChange(request, ctx);
+    },
+  },
+  {
+    command: "challenge-change",
+    requiresSession: true,
+    isWriteCommand: true,
+    handler: async (request, ctx) => {
+      return await handleChallengeChange(request, ctx);
+    },
+  },
+  {
+    command: "list-notifications",
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      return await handleListNotifications(request, ctx);
     },
   },
 ];

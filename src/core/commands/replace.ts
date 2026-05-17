@@ -5,7 +5,7 @@
  */
 
 import { existsSync } from "node:fs";
-import type { IpcRequest, IpcResponse } from "../../shared/types";
+import type { IpcRequest, IpcResponse, ChangeMetadata } from "../../shared/types";
 import type { DaemonContext } from "../../daemon/registry";
 import { replaceInContent, type SearchOptions } from "../search/engine";
 import { collectDiagnostics, formatDiagnostics } from "../../lsp/diagnostics";
@@ -130,9 +130,42 @@ export async function handleReplace(
   lines.push("");
   lines.push(diagnosticsOutput);
 
+  // Phase 16: 変更メタデータを計算
+  const changeMetadata = calculateChangeMetadata(filePath, result.matches, oldContent, result.newContent);
+
   return {
     ok: true,
     data: lines.join("\n"),
+    changes: changeMetadata ? [changeMetadata] : undefined,
+  };
+}
+
+/**
+ * Phase 16: 変更メタデータを計算する。
+ */
+function calculateChangeMetadata(
+  filePath: string,
+  matches: Array<{ line: number; column: number; text: string }>,
+  oldContent: string,
+  newContent: string
+): ChangeMetadata | null {
+  if (matches.length === 0) return null;
+
+  // 全変更行の最小・最大を取得
+  const changedLines = matches.map((m) => m.line);
+  const startLine = Math.min(...changedLines);
+  const endLine = Math.max(...changedLines);
+
+  // 行数の変化を計算
+  const oldLines = oldContent.split("\n").length;
+  const newLines = newContent.split("\n").length;
+  const lineDelta = newLines - oldLines;
+
+  return {
+    filePath,
+    startLine,
+    endLine,
+    newEndLine: endLine + lineDelta,
   };
 }
 

@@ -1,8 +1,10 @@
 /**
  * Phase 11: 会話巻き戻り検知（ドッグタグ方式）
+ * Hotfix: タグチェーンベースのエージェント識別
  *
  * セッション管理モジュール。
  * タグ検証と自動巻き戻しを実装する。
+ * タグチェーンをエージェント識別子として使用する。
  */
 
 import { randomBytes } from "node:crypto";
@@ -11,6 +13,13 @@ import { join, dirname } from "node:path";
 import { projectHash } from "../../shared/paths";
 import type { HistoryTracker } from "../history/tracker";
 import type { LspManager } from "../../lsp/manager";
+
+/**
+ * タグインデックス: tag → chainId のマッピング
+ */
+interface TagIndex {
+  [tag: string]: string;
+}
 
 /**
  * セッション状態。
@@ -35,19 +44,70 @@ function generateTag(projectHashPrefix: string): string {
 }
 
 /**
+ * チェーンID生成（ランダム8文字）
+ */
+function generateChainId(): string {
+  return randomBytes(4).toString("hex");
+}
+
+/**
+ * タグインデックスファイルのパスを取得
+ */
+function getTagIndexPath(projectRoot: string, hash: string): string {
+  if (!hash) {
+    throw new Error("[SessionManager] getTagIndexPath called with empty hash");
+  }
+  const homeDir = require("node:os").homedir();
+  return join(homeDir, ".radius", hash, "tag-index.json");
+}
+
+/**
+ * タグインデックスを読み込む
+ */
+function loadTagIndex(projectRoot: string, hash: string): TagIndex {
+  const indexPath = getTagIndexPath(projectRoot, hash);
+  if (!existsSync(indexPath)) {
+    return {};
+  }
+  try {
+    const content = readFileSync(indexPath, "utf-8");
+    return JSON.parse(content);
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * タグインデックスを保存する
+ */
+function saveTagIndex(projectRoot: string, hash: string, index: TagIndex): void {
+  const indexPath = getTagIndexPath(projectRoot, hash);
+  const dir = dirname(indexPath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  writeFileSync(indexPath, JSON.stringify(index, null, 2), "utf-8");
+}
+
+/**
  * セッションマネージャ。
- * プロジェクト単位でタグとシーケンスを管理する。
+ * プロジェクト単位、チェーン単位でタグとシーケンスを管理する。
  */
 export class SessionManager {
   private projectRoot: string;
+  private chainId: string;
   private projectHash: string;
   private projectHashPrefix: string;
   private sessionPath: string;
   private state: SessionState;
   private initialized: boolean = false;
 
-  constructor(projectRoot: string) {
+  constructor(projectRoot: string, chainId: string) {
+    if (!chainId) {
+      throw new Error("[SessionManager] constructor called with empty chainId");
+    }
     this.projectRoot = projectRoot;
+    this.chainId = chainId;
     this.projectHash = "";
     this.projectHashPrefix = "";
     this.sessionPath = "";
@@ -61,6 +121,45 @@ export class SessionManager {
     };
   }
 
+  /**
+   * タグからチェーンIDを解決する。
+   * tag が null の場合は新しいチェーンIDを生成する。
+   */
+  static async resolveChainId(projectRoot: string, tag: string | null | undefined): Promise<string> {
+    // tag が null または undefined → 新しいチェーンを開始
+    if (tag === null || tag === undefined) {
+      return generateChainId();
+    }
+
+    // tag からチェーンIDを逆引き
+    const hash = await projectHash(projectRoot);
+    const index = loadTagIndex(projectRoot, hash);
+
+    if (tag in index) {
+      return index[tag];
+    }
+
+    // 未知のタグ → 新しいチェーンとして扱う
+    return generateChainId();
+  }
+
+  /**
+   * タグをチェーンIDにマッピングする。
+   */
+  async registerTag(tag: string): Promise<void> {
+    await this.init();
+    const index = loadTagIndex(this.projectRoot, this.projectHash);
+    index[tag] = this.chainId;
+    saveTagIndex(this.projectRoot, this.projectHash, index);
+  }
+
+  /**
+   * 現在のチェーンIDを取得する。
+   */
+  getChainId(): string {
+    return this.chainId;
+  }
+
   /** 初期化（非同期）。最初の使用前に呼び出す。 */
   private async init(): Promise<void> {
     if (this.initialized) return;
@@ -69,14 +168,15 @@ export class SessionManager {
     this.projectHash = await projectHash(this.projectRoot);
     this.projectHashPrefix = this.projectHash.slice(0, 4);
 
-    // セッションファイルのパス: ~/.radius/<project-hash>/session.json
+    // セッションファイルのパス: ~/.radius/<project-hash>/sessions/<chainId>.json
     const homeDir = require("node:os").homedir();
     const radiusDir = join(homeDir, ".radius", this.projectHash);
-    this.sessionPath = join(radiusDir, "session.json");
+    const sessionsDir = join(radiusDir, "sessions");
+    this.sessionPath = join(sessionsDir, `${this.chainId}.json`);
 
     // ディレクトリ作成
-    if (!existsSync(radiusDir)) {
-      mkdirSync(radiusDir, { recursive: true });
+    if (!existsSync(sessionsDir)) {
+      mkdirSync(sessionsDir, { recursive: true });
     }
 
     this.load();
@@ -203,8 +303,9 @@ export class SessionManager {
    * changesetId が null の場合、seqToChangeset への登録をスキップするが、
    * シーケンスのインクリメントとタグ生成は必ず実行する。
    */
-  advance(changesetId: string | null): string {
-    // init() は validateAndRewind() で既に呼ばれているはず
+  async advance(changesetId: string | null): Promise<string> {
+    await this.init();
+
     this.state.currentSeq++;
     const newTag = generateTag(this.projectHashPrefix);
 
@@ -216,6 +317,11 @@ export class SessionManager {
       this.state.seqToChangeset[this.state.currentSeq] = changesetId;
     }
 
+    // タグインデックスに登録
+    const index = loadTagIndex(this.projectRoot, this.projectHash);
+    index[newTag] = this.chainId;
+    saveTagIndex(this.projectRoot, this.projectHash, index);
+
     this.save();
     return newTag;
   }
@@ -223,8 +329,9 @@ export class SessionManager {
   /**
    * 読み取り専用コマンド用。シーケンスを進めずに現在のタグを返す。
    */
-  currentTag(): string {
-    // init() は validateAndRewind() で既に呼ばれているはず
+  async currentTag(): Promise<string> {
+    await this.init();
+
     // currentSeq のタグを返す。存在しない場合は新規生成
     const existing = this.state.seqToTag[this.state.currentSeq];
     if (existing) {
@@ -235,6 +342,12 @@ export class SessionManager {
     const newTag = generateTag(this.projectHashPrefix);
     this.state.tagToSeq[newTag] = this.state.currentSeq;
     this.state.seqToTag[this.state.currentSeq] = newTag;
+
+    // タグインデックスに登録
+    const index = loadTagIndex(this.projectRoot, this.projectHash);
+    index[newTag] = this.chainId;
+    saveTagIndex(this.projectRoot, this.projectHash, index);
+
     this.save();
     return newTag;
   }

@@ -11,6 +11,22 @@ export interface IpcRequest {
   tag?: string | null;
   /** 現在の作業ディレクトリ（任意）。 */
   cwd?: string;
+  /** 標準入力内容（--stdin使用時、任意）。 */
+  stdin?: string;
+}
+
+/**
+ * 書き込みコマンドの変更メタデータ（Phase 16: マルチエージェント台帳記録用）
+ */
+export interface ChangeMetadata {
+  /** 変更されたファイルパス */
+  filePath: string;
+  /** 変更開始行（1-indexed, inclusive） */
+  startLine: number;
+  /** 変更終了行（変更前、1-indexed, inclusive） */
+  endLine: number;
+  /** 変更後の終了行（1-indexed, inclusive） */
+  newEndLine: number;
 }
 
 /**
@@ -27,4 +43,6 @@ export interface IpcResponse {
   tag?: string;
   /** 巻き戻り警告メッセージ（任意）。 */
   warnings?: string[];
+  /** 書き込みコマンドの変更メタデータ（Phase 16、任意）。 */
+  changes?: ChangeMetadata[];
 }

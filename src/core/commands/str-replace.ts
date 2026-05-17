@@ -9,7 +9,7 @@ import { resolve } from "node:path";
 import { findProjectRoot } from "../../shared/project";
 import type { HistoryTracker } from "../history/tracker";
 import type { Changeset } from "../history/types";
-import type { IpcResponse } from "../../shared/types";
+import type { IpcResponse, ChangeMetadata } from "../../shared/types";
 import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import { collectDiagnostics, formatDiagnostics } from "../../lsp/diagnostics";
@@ -111,9 +111,53 @@ export async function handleStrReplace(
     ? `\ndiagnostics:\n${formatDiagnostics(diagnosticReport)}`
     : "";
 
+  // Phase 16: 変更メタデータを計算
+  const changeMetadata = calculateChangeMetadata(content, newContent, occurrences[0], oldText, newText, absPath);
+
   return {
     ok: true,
     data: `replaced 1 occurrence in ${filepath(absPath)}\n\n${context}${diagnosticsOutput}`,
+    changes: changeMetadata ? [changeMetadata] : undefined,
+  };
+}
+
+/**
+ * Phase 16: 変更メタデータを計算する。
+ */
+function calculateChangeMetadata(
+  oldContent: string,
+  newContent: string,
+  changeOffset: number,
+  oldText: string,
+  newText: string,
+  filePath: string
+): ChangeMetadata | null {
+  const oldLines = oldContent.split("\n");
+
+  // 変更開始行を特定（1-indexed）
+  let currentOffset = 0;
+  let startLine = 1;
+  for (let i = 0; i < oldLines.length; i++) {
+    if (currentOffset + oldLines[i].length >= changeOffset) {
+      startLine = i + 1;
+      break;
+    }
+    currentOffset += oldLines[i].length + 1; // +1 for newline
+  }
+
+  // 変更前の終了行を計算
+  const oldTextLines = oldText.split("\n");
+  const endLine = startLine + oldTextLines.length - 1;
+
+  // 変更後の終了行を計算
+  const newTextLines = newText.split("\n");
+  const newEndLine = startLine + newTextLines.length - 1;
+
+  return {
+    filePath,
+    startLine,
+    endLine,
+    newEndLine,
   };
 }
 

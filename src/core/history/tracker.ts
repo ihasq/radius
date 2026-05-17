@@ -1,7 +1,8 @@
 /**
  * HistoryTracker: Undo/Redo履歴の管理。
+ * Hotfix: タグチェーンベースのエージェント識別
  *
- * プロジェクト単位で履歴を ~/.radius/<project-hash>/history/ に保存。
+ * プロジェクト・チェーン単位で履歴を ~/.radius/<project-hash>/history/<chainId>/ に保存。
  */
 
 import { resolve, dirname } from "node:path";
@@ -20,11 +21,16 @@ const MAX_HISTORY = 100;
 export class HistoryTracker {
   private historyDir: string;
   private statePath: string;
+  private chainId: string;
   // C1: 履歴操作の直列化キュー
   private operationQueue: Promise<any> = Promise.resolve();
 
-  constructor(private projectRoot: string) {
+  constructor(private projectRoot: string, chainId: string) {
     // 同期的にハッシュを計算する必要があるため、初期化は非同期メソッドで行う
+    if (!chainId) {
+      throw new Error("[HistoryTracker] constructor called with empty chainId");
+    }
+    this.chainId = chainId;
     this.historyDir = "";
     this.statePath = "";
   }
@@ -35,7 +41,7 @@ export class HistoryTracker {
 
     const hash = await projectHash(this.projectRoot);
     const radiusHome = resolve(require("os").homedir(), ".radius");
-    this.historyDir = resolve(radiusHome, hash, "history");
+    this.historyDir = resolve(radiusHome, hash, "history", this.chainId);
     this.statePath = resolve(this.historyDir, "state.json");
 
     // ディレクトリ作成

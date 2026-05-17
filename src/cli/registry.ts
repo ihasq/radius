@@ -97,6 +97,12 @@ export function buildRequestWithTag(
   request.tag = tag;
   request.cwd = cwd;
 
+  // --agent を検出（非推奨警告のため）
+  const parsed = parseArgs(args);
+  if (parsed.agent !== undefined) {
+    request.args.agent = parsed.agent;
+  }
+
   return request;
 }
 
@@ -249,7 +255,10 @@ export const commands: CommandDef[] = [
       const parsed = parseArgs(args.slice(1));
       return {
         command: "view",
-        args: { path: absPath, range: parsed.range },
+        args: {
+          path: absPath,
+          range: parsed.range,
+        },
       };
     },
   },
@@ -287,7 +296,12 @@ export const commands: CommandDef[] = [
       const absFile = resolve(cwd, file);
       return {
         command: "str-replace",
-        args: { file: absFile, old: oldText, new: newText },
+        args: {
+          file: absFile,
+          old: oldText,
+          new: newText,
+          reason: parsed.reason,
+        },
       };
     },
   },
@@ -470,6 +484,7 @@ export const commands: CommandDef[] = [
           regex: parsed.regex,
           "ignore-case": parsed["ignore-case"],
           max: parsed.max,
+          reason: parsed.reason,
         },
       };
     },
@@ -512,6 +527,57 @@ export const commands: CommandDef[] = [
           "ignore-case": parsed["ignore-case"],
           include: parsed.include,
           exclude: parsed.exclude,
+          reason: parsed.reason,
+        },
+      };
+    },
+  },
+  {
+    name: "accept-change",
+    description: "コンフリクトを受け入れる",
+    usage: "radius accept-change --conflict <conflict-id>",
+    buildRequest: (args, cwd, _stdin) => {
+      const parsed = parseArgs(args);
+      if (!parsed.conflict) {
+        throw "usage: radius accept-change --conflict <conflict-id>";
+      }
+      return {
+        command: "accept-change",
+        args: {
+          conflict: parsed.conflict,
+          cwd,
+        },
+      };
+    },
+  },
+  {
+    name: "challenge-change",
+    description: "コンフリクトに challenge を送る",
+    usage: "radius challenge-change --conflict <conflict-id> --reason <reason>",
+    buildRequest: (args, cwd, _stdin) => {
+      const parsed = parseArgs(args);
+      if (!parsed.conflict || !parsed.reason) {
+        throw "usage: radius challenge-change --conflict <conflict-id> --reason <reason>";
+      }
+      return {
+        command: "challenge-change",
+        args: {
+          conflict: parsed.conflict,
+          reason: parsed.reason,
+          cwd,
+        },
+      };
+    },
+  },
+  {
+    name: "list-notifications",
+    description: "チェーン宛ての未読通知を表示",
+    usage: "radius list-notifications",
+    buildRequest: (args, cwd, _stdin) => {
+      return {
+        command: "list-notifications",
+        args: {
+          cwd,
         },
       };
     },

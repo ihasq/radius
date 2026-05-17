@@ -19,6 +19,8 @@ import { SessionManager } from "../core/session/manager";
 import { ExtensionRegistry } from "../extension-host/registry";
 import { ExtensionLoader } from "../extension-host/loader";
 import { BufferManager } from "../core/buffer/manager";
+import { ChangeLedger } from "../core/agent/ledger";
+import { ConflictManager } from "../core/agent/conflict";
 import { handlers, type DaemonContext } from "./registry";
 import { findCommand, generateUsage, buildRequestWithTag } from "../cli/registry";
 import { readStdin, isStdinAvailable } from "../shared/stdin";
@@ -221,24 +223,49 @@ const extensionLoader = new ExtensionLoader(extensionRegistry, lspManager);
 const bufferManager = new BufferManager();
 const historyTrackers = new Map<string, HistoryTracker>();
 const sessionManagers = new Map<string, SessionManager>();
+const ledgers = new Map<string, ChangeLedger>();
+const conflictManagers = new Map<string, ConflictManager>();
 let idleTimer: ReturnType<typeof setTimeout>;
 
-/** プロジェクトルートに対応する HistoryTracker を取得 */
-function getHistoryTracker(projectRoot: string): HistoryTracker {
-  let tracker = historyTrackers.get(projectRoot);
+/** プロジェクトルート・チェーンIDに対応する HistoryTracker を取得 */
+function getHistoryTracker(projectRoot: string, chainId: string): HistoryTracker {
+  const key = `${projectRoot}:${chainId}`;
+  let tracker = historyTrackers.get(key);
   if (!tracker) {
-    tracker = new HistoryTracker(projectRoot);
-    historyTrackers.set(projectRoot, tracker);
+    tracker = new HistoryTracker(projectRoot, chainId);
+    historyTrackers.set(key, tracker);
   }
   return tracker;
 }
 
-/** プロジェクトルートに対応する SessionManager を取得 */
-function getSessionManager(projectRoot: string): SessionManager {
-  let manager = sessionManagers.get(projectRoot);
+/** プロジェクトルート・チェーンIDに対応する SessionManager を取得 */
+function getSessionManager(projectRoot: string, chainId: string): SessionManager {
+  const key = `${projectRoot}:${chainId}`;
+  let manager = sessionManagers.get(key);
   if (!manager) {
-    manager = new SessionManager(projectRoot);
-    sessionManagers.set(projectRoot, manager);
+    manager = new SessionManager(projectRoot, chainId);
+    sessionManagers.set(key, manager);
+  }
+  return manager;
+}
+
+/** プロジェクトルートに対応する ChangeLedger を取得 */
+function getLedger(projectRoot: string): ChangeLedger {
+  let ledger = ledgers.get(projectRoot);
+  if (!ledger) {
+    ledger = new ChangeLedger(projectRoot);
+    ledgers.set(projectRoot, ledger);
+  }
+  return ledger;
+}
+
+/** プロジェクトルートに対応する ConflictManager を取得 */
+function getConflictManager(projectRoot: string): ConflictManager {
+  let manager = conflictManagers.get(projectRoot);
+  if (!manager) {
+    const ledger = getLedger(projectRoot);
+    manager = new ConflictManager(projectRoot, ledger);
+    conflictManagers.set(projectRoot, manager);
   }
   return manager;
 }
@@ -295,6 +322,8 @@ const context: DaemonContext = {
   lspManager,
   getHistoryTracker,
   getSessionManager,
+  getLedger,
+  getConflictManager,
   extensionRegistry,
   extensionLoader,
   bufferManager,
@@ -315,8 +344,35 @@ for (const handlerDef of handlers) {
         // cwd からプロジェクトルートを決定
         const cwd = request.cwd || process.cwd();
         const projectRoot = findProjectRoot(cwd);
-        const sessionManager = getSessionManager(projectRoot);
-        const historyTracker = getHistoryTracker(projectRoot);
+
+        // Hotfix: タグからチェーンIDを解決
+        const tag = request.tag;
+        const chainId = await SessionManager.resolveChainId(projectRoot, tag);
+
+        // Hotfix: --agent の非推奨警告
+        const deprecationWarnings: string[] = [];
+        if (request.args.agent !== undefined) {
+          deprecationWarnings.push("warning: --agent is deprecated. Agent identity is determined by --tag.");
+        }
+
+        // チェーン別のセッション・履歴マネージャを取得
+        const sessionManager = getSessionManager(projectRoot, chainId);
+        const historyTracker = getHistoryTracker(projectRoot, chainId);
+
+        // Phase 16-1: 通知配信（全コマンド実行前）
+        const notificationMessages: string[] = [];
+        const conflictManager = getConflictManager(projectRoot);
+        const notifications = await conflictManager.getPendingNotifications(chainId);
+        if (notifications.length > 0) {
+          notificationMessages.push(`\n[chain ${chainId}] you have ${notifications.length} pending notification(s):`);
+          for (const notif of notifications.slice(0, 3)) {
+            notificationMessages.push(`  - [${notif.type}] ${notif.message}`);
+          }
+          if (notifications.length > 3) {
+            notificationMessages.push(`  ... and ${notifications.length - 3} more.`);
+          }
+          notificationMessages.push("");
+        }
 
         // タグ検証と巻き戻し
         const isWriteCommand = handlerDef.isWriteCommand ?? false;
@@ -335,8 +391,110 @@ for (const handlerDef of handlers) {
           };
         }
 
+        // Phase 16-2: 書き込みコマンドの事前コンフリクト検知（修正5: 復元）
+        if (isWriteCommand) {
+          const ledger = getLedger(projectRoot);
+
+          // ファイルパスを取得
+          let targetFiles: string[] = [];
+          if (request.args.file) {
+            targetFiles.push(request.args.file as string);
+          }
+
+          for (const filePath of targetFiles) {
+            try {
+              if (!existsSync(filePath)) continue;
+
+              // ファイル内容を取得して行数を確認
+              const content = bufferManager.getContent(filePath);
+              const lineCount = content.split("\n").length;
+
+              // 台帳から直近の変更を確認
+              const recentChanges = await ledger.getRecentChanges(filePath, 30);
+              const otherChainChanges = recentChanges.filter(entry => entry.chainId !== chainId);
+
+              if (otherChainChanges.length > 0) {
+                // コンフリクト検出
+                const conflictCheck = await conflictManager.checkBeforeWrite(
+                  chainId,
+                  filePath,
+                  1,
+                  lineCount,
+                  lineCount,
+                  30
+                );
+
+                if (conflictCheck) {
+                  const reason = request.args.reason as string | undefined;
+                  if (!reason) {
+                    // --reason がない場合は拒否し、重複箇所の内容を表示
+                    let errorMessage = `${conflictCheck.message}\n`;
+                    if (conflictCheck.overlapContent) {
+                      errorMessage += `\noverlapping content:\n${conflictCheck.overlapContent}\n`;
+                    }
+                    errorMessage += `\nTo proceed, add --reason "<explanation>" to explain your change.`;
+                    return {
+                      ok: false,
+                      error: errorMessage,
+                    };
+                  }
+                  // --reason がある場合は警告付きで続行
+                  warnings.push(`conflict warning: ${conflictCheck.message}`);
+                }
+              }
+            } catch (err) {
+              // エラーは無視して続行
+              console.error(`[Phase 16] conflict check failed for ${filePath}:`, err);
+            }
+          }
+        }
+
         // 実ハンドラを呼び出し
         const response = await handlerDef.handler(request, context);
+
+        // Phase 16-3: 書き込みコマンドの事後処理（台帳記録）
+        if (response.ok && isWriteCommand && response.changes) {
+          const ledger = getLedger(projectRoot);
+          const reason = request.args.reason as string | undefined;
+          const latestChangesetId = await historyTracker.getLatestChangesetId();
+
+          for (const change of response.changes) {
+            // 台帳に記録
+            const ledgerEntry = await ledger.record({
+              chainId,
+              filePath: change.filePath,
+              timestamp: new Date().toISOString(),
+              command: request.command,
+              startLine: change.startLine,
+              endLine: change.endLine,
+              newEndLine: change.newEndLine,
+              changesetId: latestChangesetId || null,
+            });
+
+            // 重複検知して overwrite を記録
+            const overlaps = await ledger.findOverlaps(
+              change.filePath,
+              change.startLine,
+              change.newEndLine,
+              chainId,
+              30
+            );
+
+            if (overlaps.length > 0) {
+              for (const overlap of overlaps) {
+                await conflictManager.recordOverwrite(
+                  chainId,
+                  ledgerEntry.id,
+                  overlap.id,
+                  change.filePath,
+                  Math.max(change.startLine, overlap.startLine),
+                  Math.min(change.newEndLine, overlap.newEndLine),
+                  reason || "no reason provided"
+                );
+              }
+            }
+          }
+        }
 
         // 成功時: タグを生成
         if (response.ok) {
@@ -344,23 +502,34 @@ for (const handlerDef of handlers) {
           if (isWriteCommand) {
             // 書き込みコマンド: 無条件に advance() を呼び出す
             const latestChangesetId = await historyTracker.getLatestChangesetId();
-            newTag = sessionManager.advance(latestChangesetId || null);
+            newTag = await sessionManager.advance(latestChangesetId || null);
           } else {
             // 読み取り専用コマンド: 現在のタグを返す
-            newTag = sessionManager.currentTag();
+            newTag = await sessionManager.currentTag();
           }
+
+          // 通知メッセージを data の先頭に追加
+          let finalData = response.data;
+          if (notificationMessages.length > 0 && typeof finalData === "string") {
+            finalData = notificationMessages.join("\n") + finalData;
+          }
+
+          // 非推奨警告とvalidateAndRewindからの警告をマージ
+          const allWarnings = [...deprecationWarnings, ...warnings];
 
           return {
             ...response,
+            data: finalData,
             tag: newTag,
-            warnings: warnings.length > 0 ? warnings : undefined,
+            warnings: allWarnings.length > 0 ? allWarnings : undefined,
           };
         }
 
-        // 失敗時もwarningsを含める
+        // 失敗時もwarningsを含める（非推奨警告を含む）
+        const allWarnings = [...deprecationWarnings, ...warnings];
         return {
           ...response,
-          warnings: warnings.length > 0 ? warnings : undefined,
+          warnings: allWarnings.length > 0 ? allWarnings : undefined,
         };
       }
 
