@@ -27,6 +27,9 @@ export async function setupFixture(fixtureName: string): Promise<string> {
  */
 export async function cleanupFixture(tmpDir: string): Promise<void> {
   try {
+    // セッションファイルもクリーンアップ
+    await cleanupSession(tmpDir);
+
     rmSync(tmpDir, { recursive: true, force: true });
     const index = cleanupList.indexOf(tmpDir);
     if (index > -1) {
@@ -51,4 +54,25 @@ export async function cleanupAll(): Promise<void> {
  */
 export function readFixtureFile(tmpDir: string, relativePath: string): string {
   return readFileSync(join(tmpDir, relativePath), "utf-8");
+}
+
+/**
+ * プロジェクトのセッションファイルをクリーンアップする。
+ * テスト間のセッション分離を保証するために使用する。
+ */
+export async function cleanupSession(tmpDir: string): Promise<void> {
+  try {
+    const homeDir = require("node:os").homedir();
+    const { projectHash } = await import("../../src/shared/paths");
+    const hash = await projectHash(tmpDir);
+    const sessionFile = join(homeDir, ".radius", hash, "session.json");
+
+    try {
+      rmSync(sessionFile, { force: true });
+    } catch {
+      // セッションファイルがない場合は無視
+    }
+  } catch {
+    // クリーンアップ失敗は無視
+  }
 }

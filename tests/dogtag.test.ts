@@ -179,4 +179,75 @@ describe("dog tag", () => {
 
     await radius(["undo"], { cwd: tmpDir });
   }, 30_000);
+
+  test("write command without tag is rejected when session exists", async () => {
+    const filePath = join(tmpDir, "src/main.ts");
+
+    // 1. 初回操作（タグなし → 成功）
+    const r1 = await radius(
+      ["str-replace", filePath, "--old", 'const userName: string = "default_user"', "--new", 'const step1: string = "default_user"'],
+      { cwd: tmpDir }
+    );
+    expect(r1.exitCode).toBe(0);
+    const tag1 = extractTag(r1.stdout);
+
+    // 2. タグなしで書き込み → 拒否
+    const r2 = await radius(
+      ["str-replace", filePath, "--old", 'const step1: string = "default_user"', "--new", 'const step2: string = "default_user"'],
+      { cwd: tmpDir }
+    );
+    expect(r2.exitCode).toBe(1);
+    expect(r2.stderr).toMatch(/--tag is required/i);
+    // エラーメッセージにタグ値が含まれないことを確認（"Last tag: xxxx" のような漏洩を防ぐ）
+    const errorMessage = r2.stderr.split('\n')[0]; // 最初の行だけをチェック
+    expect(errorMessage).not.toContain(tag1);
+
+    // 3. タグ付きで書き込み → 成功
+    const r3 = await radius(
+      ["str-replace", filePath, "--old", 'const step1: string = "default_user"', "--new", 'const step2: string = "default_user"', "--tag", tag1],
+      { cwd: tmpDir }
+    );
+    expect(r3.exitCode).toBe(0);
+
+    // cleanup
+    await radius(["undo", "--tag", extractTag(r3.stdout)], { cwd: tmpDir });
+    await radius(["undo"], { cwd: tmpDir });
+  }, 30_000);
+
+  test("read-only command without tag shows warning but succeeds", async () => {
+    const filePath = join(tmpDir, "src/main.ts");
+
+    // 1. 初回操作
+    const r1 = await radius(
+      ["str-replace", filePath, "--old", 'const userName: string = "default_user"', "--new", 'const step1: string = "default_user"'],
+      { cwd: tmpDir }
+    );
+    expect(r1.exitCode).toBe(0);
+    const tag1 = extractTag(r1.stdout);
+
+    // 2. タグなしで読み取り → 警告付き成功
+    const r2 = await radius(["view", filePath], { cwd: tmpDir });
+    expect(r2.exitCode).toBe(0);
+    expect(r2.stdout).toMatch(/warning.*--tag not provided/i);
+    // 警告メッセージに前回のタグ値が含まれないことを確認（"Last tag: xxxx" のような漏洩を防ぐ）
+    const warningLine = r2.stdout.split('\n').find(line => line.includes('warning'));
+    expect(warningLine).not.toContain(tag1);
+
+    // cleanup
+    await radius(["undo", "--tag", tag1], { cwd: tmpDir });
+  }, 30_000);
+
+  test("first call without tag succeeds when no session exists", async () => {
+    const filePath = join(tmpDir, "src/main.ts");
+
+    // セッションが存在しない状態で初回呼び出し
+    const r1 = await radius(
+      ["str-replace", filePath, "--old", 'const userName: string = "default_user"', "--new", 'const step1: string = "default_user"'],
+      { cwd: tmpDir }
+    );
+    expect(r1.exitCode).toBe(0);
+    expect(r1.stdout).toMatch(/radius-tag:/);
+
+    await radius(["undo"], { cwd: tmpDir });
+  }, 30_000);
 });

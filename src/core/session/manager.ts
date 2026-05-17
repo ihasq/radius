@@ -89,15 +89,29 @@ export class SessionManager {
   async validateAndRewind(
     tag: string | null | undefined,
     historyTracker: HistoryTracker,
-    lspManager: LspManager
-  ): Promise<{ warnings: string[]; currentSeq: number }> {
+    lspManager: LspManager,
+    isWriteCommand: boolean
+  ): Promise<{ warnings: string[]; currentSeq: number; rejected: boolean }> {
     await this.init();
     const warnings: string[] = [];
 
-    // 1. tag が undefined: タグなしで呼び出された（通常の使用）
-    // 現在のセッション状態を保持し、そのまま続行
+    // 1. tag が undefined: タグなしで呼び出された
     if (tag === undefined) {
-      return { warnings, currentSeq: this.state.currentSeq };
+      // セッションが存在しない（初回呼び出し）
+      if (this.state.currentSeq === 0) {
+        return { warnings, currentSeq: this.state.currentSeq, rejected: false };
+      }
+
+      // セッションが存在する
+      if (isWriteCommand) {
+        // 書き込みコマンド → 拒否
+        warnings.push("error: --tag is required. Pass the tag from your previous radius output.");
+        return { warnings, currentSeq: this.state.currentSeq, rejected: true };
+      } else {
+        // 読み取り専用コマンド → 警告付き続行
+        warnings.push("warning: --tag not provided.");
+        return { warnings, currentSeq: this.state.currentSeq, rejected: false };
+      }
     }
 
     // 2. tag が null: 明示的なセッション初期化リクエスト
@@ -107,7 +121,7 @@ export class SessionManager {
       this.state.seqToTag = {};
       this.state.seqToChangeset = {};
       this.save();
-      return { warnings, currentSeq: this.state.currentSeq };
+      return { warnings, currentSeq: this.state.currentSeq, rejected: false };
     }
 
     // 3. tag が tagToSeq に存在しない
@@ -119,14 +133,14 @@ export class SessionManager {
       this.state.seqToTag = {};
       this.state.seqToChangeset = {};
       this.save();
-      return { warnings, currentSeq: this.state.currentSeq };
+      return { warnings, currentSeq: this.state.currentSeq, rejected: false };
     }
 
     const receivedSeq = this.state.tagToSeq[tag];
 
     // 4. receivedSeq == currentSeq: 正常
     if (receivedSeq === this.state.currentSeq) {
-      return { warnings, currentSeq: this.state.currentSeq };
+      return { warnings, currentSeq: this.state.currentSeq, rejected: false };
     }
 
     // 5. receivedSeq < currentSeq: 巻き戻り検知
@@ -158,7 +172,7 @@ export class SessionManager {
             warnings.push(...undoDetails);
             this.state.currentSeq = seq;
             this.save();
-            return { warnings, currentSeq: this.state.currentSeq };
+            return { warnings, currentSeq: this.state.currentSeq, rejected: false };
           }
         }
 
@@ -175,12 +189,12 @@ export class SessionManager {
       warnings.unshift(`warning: conversation rewind detected. Undoing ${undoCount} operation(s).`);
       warnings.push(...undoDetails);
       this.save();
-      return { warnings, currentSeq: this.state.currentSeq };
+      return { warnings, currentSeq: this.state.currentSeq, rejected: false };
     }
 
     // 6. receivedSeq > currentSeq: 理論上発生しない
     warnings.push(`warning: tag from future sequence. Ignoring.`);
-    return { warnings, currentSeq: this.state.currentSeq };
+    return { warnings, currentSeq: this.state.currentSeq, rejected: false };
   }
 
   /**

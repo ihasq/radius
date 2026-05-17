@@ -3,7 +3,7 @@
  */
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
-import { radius } from "./helpers/radius";
+import { radius, extractTag } from "./helpers/radius";
 import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture, readFixtureFile } from "./helpers/fixtures";
 import { existsSync } from "node:fs";
@@ -91,7 +91,7 @@ describe("str-replace", () => {
       'userName: string = "default_user"',
       "--new",
       'displayName: string = "default_user"',
-    ]);
+    ], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("replaced 1 occurrence");
@@ -101,7 +101,8 @@ describe("str-replace", () => {
     expect(content).not.toContain("userName:");
 
     // Cleanup
-    await radius(["undo"], { cwd: tmpDir });
+    const tag = extractTag(result.stdout);
+    await radius(["undo", "--tag", tag], { cwd: tmpDir });
   });
 
   test("returns error on multiple matches", async () => {
@@ -113,7 +114,7 @@ describe("str-replace", () => {
       "function",
       "--new",
       "fn",
-    ]);
+    ], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/multiple matches/i);
@@ -128,7 +129,7 @@ describe("str-replace", () => {
       "nonexistentText",
       "--new",
       "replacement",
-    ]);
+    ], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/no match/i);
@@ -148,7 +149,7 @@ describe("str-replace", () => {
     const content = readFixtureFile(tmpDir, "src/main.ts");
     expect(content).toContain("displayName");
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   });
 
   test("output includes change context with > marker", async () => {
@@ -165,7 +166,7 @@ describe("str-replace", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/>\s*\d+:/); // > marker with line number
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   });
 });
 
@@ -187,7 +188,7 @@ describe("insert", () => {
     const content = readFixtureFile(tmpDir, "src/main.ts");
     expect(content).toContain("// New comment");
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   });
 
   test("inserts at file beginning with --line 0", async () => {
@@ -207,7 +208,7 @@ describe("insert", () => {
     const lines = content.split("\n");
     expect(lines[0]).toContain("// Header comment");
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   });
 
   test("returns error for invalid line number", async () => {
@@ -243,7 +244,7 @@ describe("create", () => {
     const content = readFixtureFile(tmpDir, "src/newfile.ts");
     expect(content).toContain("export const x = 1;");
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   });
 
   test("returns error if file already exists", async () => {
@@ -271,7 +272,7 @@ describe("create", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("const preview = true;");
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   });
 });
 
@@ -311,7 +312,7 @@ describe("solve-conflict", () => {
     expect(content).not.toContain("=======");
     expect(content).not.toContain(">>>>>>>");
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   });
 
   test("resolves single conflict with --id", async () => {
@@ -330,7 +331,7 @@ describe("solve-conflict", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/resolved.*conflict 1/i);
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   });
 
   test("returns error for invalid conflict id", async () => {
@@ -363,7 +364,7 @@ describe("rename-file", () => {
     expect(existsSync(newPath)).toBe(true);
     expect(existsSync(oldPath)).toBe(false);
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   });
 
   test("returns error for nonexistent source", async () => {

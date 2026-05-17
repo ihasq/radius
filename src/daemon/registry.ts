@@ -42,6 +42,8 @@ export interface HandlerDef {
   handler: (request: IpcRequest, ctx: DaemonContext) => Promise<IpcResponse>;
   /** セッション検証を行うかどうか（デフォルト: false）。 */
   requiresSession?: boolean;
+  /** ファイル変更を伴うコマンドかどうか（デフォルト: false）。 */
+  isWriteCommand?: boolean;
 }
 
 /** ハンドラ定義一覧。 */
@@ -69,6 +71,7 @@ export const handlers: HandlerDef[] = [
   {
     command: "modify-var",
     requiresSession: true,
+    isWriteCommand: true,
     handler: async (request, ctx) => {
       const filePath = request.args.file as string | undefined;
       if (!filePath) {
@@ -82,6 +85,7 @@ export const handlers: HandlerDef[] = [
   {
     command: "undo",
     requiresSession: true,
+    isWriteCommand: true,
     handler: async (request, ctx) => {
       const cwd = request.args.cwd as string | undefined;
       if (!cwd) {
@@ -95,6 +99,7 @@ export const handlers: HandlerDef[] = [
   {
     command: "redo",
     requiresSession: true,
+    isWriteCommand: true,
     handler: async (request, ctx) => {
       const cwd = request.args.cwd as string | undefined;
       if (!cwd) {
@@ -108,6 +113,7 @@ export const handlers: HandlerDef[] = [
   {
     command: "solve-conflict",
     requiresSession: true,
+    isWriteCommand: true,
     handler: async (request, ctx) => {
       const filePath = request.args.file as string | undefined;
       if (!filePath) {
@@ -121,6 +127,7 @@ export const handlers: HandlerDef[] = [
   {
     command: "rename-file",
     requiresSession: true,
+    isWriteCommand: true,
     handler: async (request, ctx) => {
       return await handleRenameFile(request.args, ctx);
     },
@@ -153,6 +160,7 @@ export const handlers: HandlerDef[] = [
   {
     command: "str-replace",
     requiresSession: true,
+    isWriteCommand: true,
     handler: async (request, ctx) => {
       const filePath = request.args.file as string | undefined;
       if (!filePath) {
@@ -166,6 +174,7 @@ export const handlers: HandlerDef[] = [
   {
     command: "create",
     requiresSession: true,
+    isWriteCommand: true,
     handler: async (request, ctx) => {
       const filePath = request.args.file as string | undefined;
       if (!filePath) {
@@ -179,6 +188,7 @@ export const handlers: HandlerDef[] = [
   {
     command: "insert",
     requiresSession: true,
+    isWriteCommand: true,
     handler: async (request, ctx) => {
       const filePath = request.args.file as string | undefined;
       if (!filePath) {

@@ -319,28 +319,30 @@ for (const handlerDef of handlers) {
         const historyTracker = getHistoryTracker(projectRoot);
 
         // タグ検証と巻き戻し
-        const { warnings, currentSeq } = await sessionManager.validateAndRewind(
+        const isWriteCommand = handlerDef.isWriteCommand ?? false;
+        const { warnings, currentSeq, rejected } = await sessionManager.validateAndRewind(
           request.tag,
           historyTracker,
-          lspManager
+          lspManager,
+          isWriteCommand
         );
+
+        // 拒否された場合はエラーを返す
+        if (rejected) {
+          return {
+            ok: false,
+            error: warnings[0],
+          };
+        }
 
         // 実ハンドラを呼び出し
         const response = await handlerDef.handler(request, context);
 
         // 成功時: タグを生成
         if (response.ok) {
-          // ファイル変更を伴うコマンドかどうかを判定
-          // undo/redo, view, read-var は現在のタグを返す
-          // それ以外は advance して新しいタグを生成
-          const isReadOnlyCommand =
-            handlerDef.command === "view" || handlerDef.command === "read-var";
-
           let newTag: string;
-          if (isReadOnlyCommand) {
-            newTag = sessionManager.currentTag();
-          } else {
-            // 最新の changeset ID を取得
+          if (isWriteCommand) {
+            // 書き込みコマンド: advance して新しいタグを生成
             const latestChangesetId = await historyTracker.getLatestChangesetId();
             if (latestChangesetId) {
               newTag = sessionManager.advance(latestChangesetId);
@@ -348,6 +350,9 @@ for (const handlerDef of handlers) {
               // changeset がない場合は現在のタグを返す
               newTag = sessionManager.currentTag();
             }
+          } else {
+            // 読み取り専用コマンド: 現在のタグを返す
+            newTag = sessionManager.currentTag();
           }
 
           return {
