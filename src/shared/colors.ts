@@ -16,11 +16,22 @@ import {
 
 /**
  * カラー出力が無効化されているか判定する。
- * NO_COLOR または RADIUS_NO_COLOR が設定されている場合、または
- * 標準出力がTTYでない場合に無効化される。
+ * NO_COLOR または RADIUS_NO_COLOR が設定されている場合に無効化される。
+ * FORCE_COLOR が設定されている場合は、TTYでなくても有効化される。
  */
 function isColorDisabled(): boolean {
-  return !!(process.env.NO_COLOR || process.env.RADIUS_NO_COLOR) || !process.stdout.isTTY;
+  // FORCE_COLOR が設定されている場合は強制有効化
+  if (process.env.FORCE_COLOR) {
+    return false;
+  }
+
+  // NO_COLOR が設定されている場合は無効化
+  if (process.env.NO_COLOR || process.env.RADIUS_NO_COLOR) {
+    return true;
+  }
+
+  // TTYでない場合は無効化
+  return !process.stdout.isTTY;
 }
 
 /**

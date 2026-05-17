@@ -43,25 +43,36 @@ export class BufferManager {
     const entry = this.buffers.get(filePath);
 
     if (entry) {
-      // 既存バッファあり → mtime チェック
-      try {
-        const diskMtime = statSync(filePath).mtimeMs;
-        if (diskMtime > entry.lastFlushMs) {
-          // 外部変更を検知。バッファを再構築する。
-          console.log(`[buffer] external change detected: ${filePath}`);
-          this.buffers.delete(filePath);
-          // 新規バッファ構築へフォールスルー
-        } else {
-          // Phase 10 Part B: LRU更新（末尾に移動）
-          this.buffers.delete(filePath);
-          this.buffers.set(filePath, entry);
+      // 既存バッファあり
+      // Phase 10 Part B: LRU更新（末尾に移動）
+      this.buffers.delete(filePath);
+      this.buffers.set(filePath, entry);
+
+      // dirty な場合は mtime チェックをスキップして既存バッファを返す
+      if (entry.dirty) {
+        return entry.buffer;
+      }
+
+      // dirty でない場合のみ mtime チェック
+      // ただし、ファイルが存在しない場合はチェックをスキップ
+      if (existsSync(filePath)) {
+        try {
+          const diskMtime = statSync(filePath).mtimeMs;
+          if (diskMtime > entry.lastFlushMs) {
+            // 外部変更を検知。バッファを再構築する。
+            console.log(`[buffer] external change detected: ${filePath}`);
+            this.buffers.delete(filePath);
+            // 新規バッファ構築へフォールスルー
+          } else {
+            return entry.buffer;
+          }
+        } catch (err) {
+          // statSync に失敗した場合（まれ）
           return entry.buffer;
         }
-      } catch (err) {
-        // ファイルが削除された場合
-        console.log(`[buffer] file no longer exists: ${filePath}`);
-        this.buffers.delete(filePath);
-        throw new Error(`Cannot read file: ${filePath}`);
+      } else {
+        // ファイルが存在しない → 新規作成中の可能性があるので既存バッファを返す
+        return entry.buffer;
       }
     }
 

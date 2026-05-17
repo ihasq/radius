@@ -177,8 +177,10 @@ async function main(): Promise<void> {
 
   // A: 警告出力
   if (response.warnings && response.warnings.length > 0) {
-    for (const warning of response.warnings) {
-      console.error(warning);
+    // CLI側で着色（デーモン側では着色されていない生テキスト）
+    const { warning: colorWarning } = await import("../shared/colors");
+    for (const warningText of response.warnings) {
+      console.log(colorWarning(warningText));
     }
   }
 
