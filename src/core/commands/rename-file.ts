@@ -14,6 +14,7 @@ import type { HistoryTracker } from "../history/tracker";
 import type { Changeset, FileChange } from "../history/types";
 import type { IpcResponse } from "../../shared/types";
 import type { DaemonContext } from "../../daemon/registry";
+import { filepath, muted } from "../../shared/colors";
 
 /**
  * rename-file コマンドのエントリポイント。
@@ -303,7 +304,7 @@ function formatOutput(
   updatedFiles: string[]
 ): string {
   const lines = [
-    `renamed: ${oldPath} → ${newPath}`,
+    `renamed: ${filepath(oldPath)} → ${filepath(newPath)}`,
     `engine: static`,
     `imports updated: ${importCount}`,
   ];
@@ -311,7 +312,7 @@ function formatOutput(
   if (updatedFiles.length > 0) {
     lines.push("");
     for (const file of updatedFiles) {
-      lines.push(`--- ${file} (1 edit) ---`);
+      lines.push(muted(`--- ${filepath(file)} (1 edit) ---`));
     }
   }
 

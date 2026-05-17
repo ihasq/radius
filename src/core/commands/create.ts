@@ -13,6 +13,7 @@ import type { IpcResponse } from "../../shared/types";
 import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import { collectDiagnostics, formatDiagnostics } from "../../lsp/diagnostics";
+import { filepath, added } from "../../shared/colors";
 
 /**
  * create コマンドハンドラ。
@@ -93,7 +94,7 @@ export async function handleCreate(
 
   return {
     ok: true,
-    data: `created: ${absPath}\n\n${contentPreview}${diagnosticsOutput}`,
+    data: `created: ${filepath(absPath)}\n\n${contentPreview}${diagnosticsOutput}`,
   };
 }
 
@@ -105,20 +106,20 @@ function generateContentPreview(content: string): string {
   const lines = content.split("\n");
 
   if (lines.length <= 20) {
-    // 全文表示（行番号付き）
+    // 全文表示（行番号付き、全行緑）
     return lines
       .map((line, i) => {
         const lineNum = String(i + 1).padStart(4, " ");
-        return ` ${lineNum}: ${line}`;
+        return added(` ${lineNum}: ${line}`);
       })
       .join("\n");
   } else {
-    // 先頭10行 + 省略メッセージ
+    // 先頭10行 + 省略メッセージ（全行緑）
     const preview = lines
       .slice(0, 10)
       .map((line, i) => {
         const lineNum = String(i + 1).padStart(4, " ");
-        return ` ${lineNum}: ${line}`;
+        return added(` ${lineNum}: ${line}`);
       })
       .join("\n");
     return `${preview}\n... (${lines.length - 10} more lines)`;

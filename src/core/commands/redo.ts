@@ -9,6 +9,7 @@ import { LspManager } from "../../lsp/manager";
 import { findProjectRoot } from "../../shared/project";
 import { HistoryTracker } from "../history/tracker";
 import type { IpcResponse } from "../../shared/types";
+import { filepath, warning as colorWarning } from "../../shared/colors";
 
 /**
  * redo コマンドのエントリポイント。
@@ -54,13 +55,13 @@ function formatOutput(changeset: {
   changes: Array<{ filePath: string; before: string; after: string }>;
 }): string {
   const header = [
-    `redone: ${changeset.command} (${changeset.description})`,
+    colorWarning(`redone: ${changeset.command} (${changeset.description})`),
     `timestamp: ${changeset.timestamp}`,
     `files restored: ${changeset.changes.length}`,
   ].join("\n");
 
   const body = changeset.changes
-    .map((change) => `  - ${change.filePath}`)
+    .map((change) => `  - ${filepath(change.filePath)}`)
     .join("\n");
 
   return header + "\n" + body;

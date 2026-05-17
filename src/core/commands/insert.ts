@@ -13,6 +13,7 @@ import type { IpcResponse } from "../../shared/types";
 import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import { collectDiagnostics, formatDiagnostics } from "../../lsp/diagnostics";
+import { filepath, added } from "../../shared/colors";
 
 /**
  * insert コマンドハンドラ。
@@ -111,7 +112,7 @@ export async function handleInsert(
 
   return {
     ok: true,
-    data: `inserted at line ${lineNum} in ${absPath}\n\n${context}${diagnosticsOutput}`,
+    data: `inserted at line ${lineNum} in ${filepath(absPath)}\n\n${context}${diagnosticsOutput}`,
   };
 }
 
@@ -131,7 +132,9 @@ function generateInsertContext(lines: string[], insertedAtLine: number): string 
   for (let i = startLine; i <= endLine; i++) {
     const lineNum = String(i + 1).padStart(4, " ");
     const marker = i === insertedLineIndex ? ">" : " ";
-    output.push(`${marker}${lineNum}: ${lines[i]}`);
+    const line = `${marker}${lineNum}: ${lines[i]}`;
+    // 挿入行は緑で表示
+    output.push(i === insertedLineIndex ? added(line) : line);
   }
 
   return output.join("\n");

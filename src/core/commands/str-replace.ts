@@ -13,6 +13,7 @@ import type { IpcResponse } from "../../shared/types";
 import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import { collectDiagnostics, formatDiagnostics } from "../../lsp/diagnostics";
+import { filepath, marker as colorMarker } from "../../shared/colors";
 
 /**
  * str-replace コマンドハンドラ。
@@ -112,7 +113,7 @@ export async function handleStrReplace(
 
   return {
     ok: true,
-    data: `replaced 1 occurrence in ${absPath}\n\n${context}${diagnosticsOutput}`,
+    data: `replaced 1 occurrence in ${filepath(absPath)}\n\n${context}${diagnosticsOutput}`,
   };
 }
 
@@ -148,7 +149,9 @@ function generateChangeContext(
   for (let i = startLine; i <= endLine; i++) {
     const lineNum = String(i + 1).padStart(4, " ");
     const marker = i === changeLine ? ">" : " ";
-    output.push(`${marker}${lineNum}: ${lines[i]}`);
+    const line = `${marker}${lineNum}: ${lines[i]}`;
+    // マーカー行はカラー適用
+    output.push(i === changeLine ? colorMarker(line) : line);
   }
 
   return output.join("\n");

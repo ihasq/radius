@@ -14,6 +14,7 @@ import type { LspWorkspaceEdit, LspTextEdit } from "../../lsp/types";
 import type { IpcResponse } from "../../shared/types";
 import type { BufferManager } from "../buffer/manager";
 import { collectDiagnostics, formatDiagnostics } from "../../lsp/diagnostics";
+import { filepath, added, muted, warning as colorWarning } from "../../shared/colors";
 
 /** リトライロジックの定数（read-varと同期） */
 const INITIAL_WAIT_MS = 1000;
@@ -338,7 +339,7 @@ export async function handleModifyVar(
   for (const change of fileChanges) {
     const diagnosticReport = await collectDiagnostics(lspManager, change.filePath, change.after);
     if (diagnosticReport && diagnosticReport.diagnostics.length > 0) {
-      diagnosticsOutputs.push(`\n${change.filePath}:\n${formatDiagnostics(diagnosticReport)}`);
+      diagnosticsOutputs.push(`\n${filepath(change.filePath)}:\n${formatDiagnostics(diagnosticReport)}`);
     }
   }
 
@@ -367,16 +368,17 @@ function formatOutput(
   const body = fileEdits
     .map((fileEdit) => {
       const lines = fileEdit.edits
-        .map((edit) => `${String(edit.line).padStart(4, " ")}: ${edit.newText}`)
+        .map((edit) => added(`${String(edit.line).padStart(4, " ")}: ${edit.newText}`))
         .join("\n");
-      return `\n--- ${fileEdit.path} (${fileEdit.edits.length} edits) ---\n${lines}`;
+      const separator = muted(`--- ${filepath(fileEdit.path)} (${fileEdit.edits.length} edits) ---`);
+      return `\n${separator}\n${lines}`;
     })
     .join("\n");
 
   // A3: テキストフォールバック時の警告
-  const warning = engine === "text"
-    ? "\n\nwarning: text-based replacement was used. Semantic accuracy is not guaranteed. Review changes carefully."
+  const warningText = engine === "text"
+    ? "\n\n" + colorWarning("warning: text-based replacement was used. Semantic accuracy is not guaranteed. Review changes carefully.")
     : "";
 
-  return header + "\n" + body + warning;
+  return header + "\n" + body + warningText;
 }

@@ -13,6 +13,7 @@ import type { Changeset } from "../history/types";
 import type { IpcResponse } from "../../shared/types";
 import type { BufferManager } from "../buffer/manager";
 import { collectDiagnostics, formatDiagnostics } from "../../lsp/diagnostics";
+import { filepath, removed, added } from "../../shared/colors";
 
 /**
  * solve-conflict コマンドのエントリポイント。
@@ -133,7 +134,7 @@ export async function handleSolveConflict(
  */
 function formatReadMode(parseResult: { filePath: string; conflictCount: number; conflicts: ConflictRegion[] }): string {
   const header = [
-    `file: ${parseResult.filePath}`,
+    `file: ${filepath(parseResult.filePath)}`,
     `conflicts: ${parseResult.conflictCount}`,
   ].join("\n");
 
@@ -144,16 +145,16 @@ function formatReadMode(parseResult: { filePath: string; conflictCount: number; 
   const body = parseResult.conflicts.map((conflict) => {
     const lines = [`\n=== conflict ${conflict.id} (lines ${conflict.oursStartLine}-...) ===`];
 
-    lines.push("--- ours (HEAD) ---");
-    lines.push(...conflict.ours.map((line) => `  ${line}`));
+    lines.push(removed("--- ours (HEAD) ---"));
+    lines.push(...conflict.ours.map((line) => removed(`  ${line}`)));
 
     if (conflict.base) {
       lines.push("--- base ---");
       lines.push(...conflict.base.map((line) => `  ${line}`));
     }
 
-    lines.push(`--- theirs (${conflict.theirsBranch}) ---`);
-    lines.push(...conflict.theirs.map((line) => `  ${line}`));
+    lines.push(added(`--- theirs (${conflict.theirsBranch}) ---`));
+    lines.push(...conflict.theirs.map((line) => added(`  ${line}`)));
 
     return lines.join("\n");
   }).join("\n");
@@ -183,7 +184,7 @@ function formatResolveMode(
     }
   }
 
-  resolved.push(`file: ${filePath}`);
+  resolved.push(`file: ${filepath(filePath)}`);
   resolved.push(`remaining conflicts: ${remainingCount}`);
 
   return resolved.join("\n");

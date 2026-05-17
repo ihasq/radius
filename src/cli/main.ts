@@ -15,6 +15,7 @@ import { findCommand, generateUsage, buildRequestWithTag } from "./registry";
 import type { IpcRequest } from "../shared/types";
 import { readStdin, isStdinAvailable } from "../shared/stdin";
 import pkg from "../../package.json";
+import { muted } from "../shared/colors";
 
 /**
  * PIDファイルに記録されたプロセスが生存しているか確認する。
@@ -192,7 +193,9 @@ async function main(): Promise<void> {
 
   // A: タグ出力
   if (response.tag) {
-    console.log(`\n[tag: ${response.tag}]`);
+    console.log(muted("\n---"));
+    console.log(muted(`radius-tag: ${response.tag}`));
+    console.log(muted(`[pass --tag ${response.tag} to your next radius command]`));
   }
 }
 

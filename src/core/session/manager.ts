@@ -11,6 +11,7 @@ import { join, dirname } from "node:path";
 import { projectHash } from "../../shared/paths";
 import type { HistoryTracker } from "../history/tracker";
 import type { LspManager } from "../../lsp/manager";
+import { warning as colorWarning } from "../../shared/colors";
 
 /**
  * セッション状態。
@@ -150,11 +151,11 @@ export class SessionManager {
                   client.closeDocument(uri);
                 }
               }
-              undoDetails.push(`  undone: ${undoResult.command} (${undoResult.description}) [seq:${seq}]`);
+              undoDetails.push(colorWarning(`  undone: ${undoResult.command} (${undoResult.description}) [seq:${seq}]`));
             }
           } catch (err) {
             // undo 失敗時は中止
-            warnings.push(`warning: partial rewind. ${this.state.currentSeq - seq} of ${undoCount} operations undone.`);
+            warnings.push(colorWarning(`warning: partial rewind. ${this.state.currentSeq - seq} of ${undoCount} operations undone.`));
             warnings.push(...undoDetails);
             this.state.currentSeq = seq;
             this.save();
@@ -172,7 +173,7 @@ export class SessionManager {
       }
 
       this.state.currentSeq = receivedSeq;
-      warnings.unshift(`warning: conversation rewind detected. Undoing ${undoCount} operation(s).`);
+      warnings.unshift(colorWarning(`warning: conversation rewind detected. Undoing ${undoCount} operation(s).`));
       warnings.push(...undoDetails);
       this.save();
       return { warnings, currentSeq: this.state.currentSeq };

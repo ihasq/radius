@@ -6,6 +6,7 @@ import type { LspManager } from "./manager";
 import type { LspDiagnostic } from "./types";
 import { DiagnosticSeverity } from "./types";
 import { findProjectRoot } from "../shared/project";
+import { diagnostic as colorDiagnostic } from "../shared/colors";
 
 /** 診断情報の収集結果 */
 export interface DiagnosticReport {
@@ -76,15 +77,17 @@ export function formatDiagnostics(report: DiagnosticReport): string {
   });
 
   for (const diag of sorted) {
-    const severity = getSeverityLabel(diag.severity);
+    const severityLabel = getSeverityLabel(diag.severity);
+    const severityType = getSeverityType(diag.severity);
     const line = diag.range.start.line + 1; // 1-indexed
     const col = diag.range.start.character + 1;
     const code = diag.code ? ` [${diag.code}]` : "";
     const source = diag.source ? ` (${diag.source})` : "";
 
-    // ヘッダー
-    output.push(`${severity} at line ${line}, col ${col}${code}${source}:`);
-    output.push(`  ${diag.message}`);
+    // ヘッダー（カラー適用）
+    const header = `${severityLabel} at line ${line}, col ${col}${code}${source}:`;
+    output.push(colorDiagnostic(header, severityType));
+    output.push(colorDiagnostic(`  ${diag.message}`, severityType));
 
     // コンテキスト（該当行の前後1行）
     const startLine = Math.max(0, diag.range.start.line - 1);
@@ -134,5 +137,21 @@ function getSeverityLabel(severity?: number): string {
       return "hint";
     default:
       return "diagnostic";
+  }
+}
+
+/** 診断重要度を色付け用の型に変換 */
+function getSeverityType(severity?: number): "error" | "warning" | "info" | "hint" {
+  switch (severity) {
+    case DiagnosticSeverity.Error:
+      return "error";
+    case DiagnosticSeverity.Warning:
+      return "warning";
+    case DiagnosticSeverity.Information:
+      return "info";
+    case DiagnosticSeverity.Hint:
+      return "hint";
+    default:
+      return "info";
   }
 }
