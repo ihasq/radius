@@ -154,7 +154,7 @@ export async function handleFix(
         return { ok: false, error: editResult.error! };
       }
 
-      changeMetadata = editResult.metadata;
+      changeMetadata = editResult.metadata ?? null;
     } else if (selectedAction.command) {
       // コマンド実行
       try {
