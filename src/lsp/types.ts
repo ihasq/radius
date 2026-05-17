@@ -48,6 +48,25 @@ export interface LspTextDocumentEdit {
   edits: LspTextEdit[];
 }
 
+/** Call Hierarchy 用の型定義 */
+export interface LspCallHierarchyItem {
+  name: string;
+  kind: number;
+  uri: string;
+  range: LspRange;
+  selectionRange: LspRange;
+}
+
+export interface LspCallHierarchyIncomingCall {
+  from: LspCallHierarchyItem;
+  fromRanges: LspRange[];
+}
+
+export interface LspCallHierarchyOutgoingCall {
+  to: LspCallHierarchyItem;
+  fromRanges: LspRange[];
+}
+
 /** textDocument/publishDiagnostics用の型定義 */
 export interface LspDiagnostic {
   range: LspRange;

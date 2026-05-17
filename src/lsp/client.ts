@@ -5,7 +5,7 @@
 
 import type { Subprocess } from "bun";
 import { writeMessage, LspReader } from "./transport";
-import type { LspLocation, LspPosition, LspDocumentSymbol, LspWorkspaceEdit, LspDiagnostic } from "./types";
+import type { LspLocation, LspPosition, LspDocumentSymbol, LspWorkspaceEdit, LspDiagnostic, LspCallHierarchyItem, LspCallHierarchyIncomingCall, LspCallHierarchyOutgoingCall } from "./types";
 
 interface PendingRequest {
   resolve: (result: any) => void;
@@ -63,6 +63,9 @@ export class LspClient {
           },
           synchronization: {
             didSave: true,
+          },
+          callHierarchy: {
+            dynamicRegistration: false,
           },
         },
       },
@@ -181,6 +184,35 @@ export class LspClient {
       textDocument: { uri },
       position,
       newName,
+    });
+  }
+
+  /** 指定位置のシンボルに対するCall Hierarchy Itemを取得する。 */
+  async prepareCallHierarchy(
+    uri: string,
+    position: LspPosition
+  ): Promise<LspCallHierarchyItem[]> {
+    return await this.request("textDocument/prepareCallHierarchy", {
+      textDocument: { uri },
+      position,
+    });
+  }
+
+  /** 指定アイテムの呼び出し元を取得する。 */
+  async incomingCalls(
+    item: LspCallHierarchyItem
+  ): Promise<LspCallHierarchyIncomingCall[]> {
+    return await this.request("callHierarchy/incomingCalls", {
+      item,
+    });
+  }
+
+  /** 指定アイテムの呼び出し先を取得する。 */
+  async outgoingCalls(
+    item: LspCallHierarchyItem
+  ): Promise<LspCallHierarchyOutgoingCall[]> {
+    return await this.request("callHierarchy/outgoingCalls", {
+      item,
     });
   }
 

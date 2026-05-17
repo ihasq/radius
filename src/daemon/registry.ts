@@ -16,6 +16,7 @@ import { handleStrReplace } from "../core/commands/str-replace";
 import { handleCreate } from "../core/commands/create";
 import { handleInsert } from "../core/commands/insert";
 import { handleLspList } from "../core/commands/lsp";
+import { handleGraph } from "../core/commands/graph";
 import { findProjectRoot } from "../shared/project";
 import type { IpcRequest, IpcResponse } from "../shared/types";
 import type { LspManager } from "../lsp/manager";
@@ -192,6 +193,18 @@ export const handlers: HandlerDef[] = [
     command: "lsp-list",
     handler: async (request, ctx) => {
       return await handleLspList(request.args, ctx.extensionLoader);
+    },
+  },
+  {
+    command: "graph",
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      const filePath = request.args.file as string | undefined;
+      if (!filePath) {
+        return { ok: false, error: "Missing required arg: file" };
+      }
+      const projectRoot = findProjectRoot(filePath);
+      return await handleGraph(request, ctx.lspManager, ctx.bufferManager, projectRoot);
     },
   },
 ];

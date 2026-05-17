@@ -367,6 +367,46 @@ export const commands: CommandDef[] = [
       }
     },
   },
+  {
+    name: "graph",
+    description: "Mermaid グラフ生成",
+    usage: "radius graph <imports|refs|calls> <file> [symbol/function] [options]",
+    buildRequest: (args, cwd, _stdin) => {
+      if (args.length < 2) {
+        throw "usage: radius graph <imports|refs|calls> <file> [symbol/function] [options]";
+      }
+      const subcommand = args[0];
+      const file = args[1];
+      const absFile = resolve(cwd, file);
+
+      const result: Record<string, unknown> = {
+        subcommand,
+        file: absFile,
+      };
+
+      // サブコマンドによって第3引数の扱いが異なる
+      if (subcommand === "refs" && args.length >= 3) {
+        result.symbol = args[2];
+        // 残りのオプションをパース
+        const parsed = parseArgs(args.slice(3));
+        Object.assign(result, parsed);
+      } else if (subcommand === "calls" && args.length >= 3) {
+        result.function = args[2];
+        // 残りのオプションをパース
+        const parsed = parseArgs(args.slice(3));
+        Object.assign(result, parsed);
+      } else {
+        // imports の場合はオプションのみ
+        const parsed = parseArgs(args.slice(2));
+        Object.assign(result, parsed);
+      }
+
+      return {
+        command: "graph",
+        args: result,
+      };
+    },
+  },
 ];
 
 /**

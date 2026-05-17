@@ -49,6 +49,16 @@ export async function findImportsTo(
 }
 
 /**
+ * 指定ファイルが import しているモジュールの一覧を返す。
+ */
+export function findImportsFrom(
+  filePath: string,
+  projectRoot: string
+): ImportEntry[] {
+  return extractImports(filePath, projectRoot);
+}
+
+/**
  * プロジェクト配下の全対象ファイルを収集する。
  */
 function collectFiles(dir: string): string[] {
