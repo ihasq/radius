@@ -144,7 +144,7 @@ export const handlers: HandlerDef[] = [
     requiresSession: true,
     isWriteCommand: true,
     handler: async (request, ctx) => {
-      return await handleRenameFile(request.args, ctx);
+      return await handleRenameFile(request, ctx);
     },
   },
   {

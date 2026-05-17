@@ -11,6 +11,7 @@ import { replaceInContent, type SearchOptions } from "../search/engine";
 import { collectDiagnostics, formatDiagnostics } from "../../lsp/diagnostics";
 import { findProjectRoot } from "../../shared/project";
 import { marker as colorMarker } from "../../shared/colors";
+import { SessionManager } from "../session/manager";
 
 export async function handleReplace(
   request: IpcRequest,
@@ -90,7 +91,8 @@ export async function handleReplace(
 
   // Changeset記録
   const projectRoot = findProjectRoot(cwd || process.cwd());
-  const historyTracker = ctx.getHistoryTracker(projectRoot);
+  const chainId = await SessionManager.resolveChainId(projectRoot, request.tag);
+  const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
 
   const changeset = {
     id: String(Date.now()),
@@ -145,7 +147,7 @@ export async function handleReplace(
  */
 function calculateChangeMetadata(
   filePath: string,
-  matches: Array<{ line: number; column: number; text: string }>,
+  matches: Array<{ line: number }>,
   oldContent: string,
   newContent: string
 ): ChangeMetadata | null {

@@ -12,17 +12,19 @@ import { findProjectRoot } from "../../shared/project";
 import { LspManager } from "../../lsp/manager";
 import type { HistoryTracker } from "../history/tracker";
 import type { Changeset, FileChange } from "../history/types";
-import type { IpcResponse } from "../../shared/types";
+import type { IpcRequest, IpcResponse } from "../../shared/types";
 import type { DaemonContext } from "../../daemon/registry";
 import { filepath, muted } from "../../shared/colors";
+import { SessionManager } from "../session/manager";
 
 /**
  * rename-file コマンドのエントリポイント。
  */
 export async function handleRenameFile(
-  args: Record<string, unknown>,
+  request: IpcRequest,
   ctx: DaemonContext
 ): Promise<IpcResponse> {
+  const { args } = request;
   const oldPath = args.file as string | undefined;
   const newPath = args.to as string | undefined;
 
@@ -56,7 +58,8 @@ export async function handleRenameFile(
 
   // 4. プロジェクトルート取得
   const projectRoot = findProjectRoot(oldAbsPath);
-  const historyTracker = ctx.getHistoryTracker(projectRoot);
+  const chainId = await SessionManager.resolveChainId(projectRoot, request.tag);
+  const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
 
   // 5. 参照元を収集
   const importEntries = await findImportsTo(projectRoot, oldAbsPath);

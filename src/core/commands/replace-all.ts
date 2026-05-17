@@ -13,6 +13,7 @@ import { findFiles, type GlobOptions } from "../search/glob";
 import { collectDiagnostics, formatDiagnostics, type DiagnosticReport } from "../../lsp/diagnostics";
 import { findProjectRoot } from "../../shared/project";
 import { marker as colorMarker } from "../../shared/colors";
+import { SessionManager } from "../session/manager";
 
 export async function handleReplaceAll(
   request: IpcRequest,
@@ -104,7 +105,7 @@ export async function handleReplaceAll(
     oldContent: string;
     newContent: string;
     count: number;
-    matches: Array<{ line: number; lineContent: string }>;
+    matches: Array<{ line: number; column: number; matchText: string; lineContent: string }>;
   }
 
   const replacements: FileReplacement[] = [];
@@ -126,7 +127,7 @@ export async function handleReplaceAll(
         oldContent: content,
         newContent: result.newContent,
         count: result.count,
-        matches: result.matches.map((m) => ({ line: m.line, lineContent: m.lineContent })),
+        matches: result.matches,
       });
       totalReplacements += result.count;
     }
@@ -146,7 +147,8 @@ export async function handleReplaceAll(
 
   // Changeset記録（単一のChangesetに全ファイルの変更を記録）
   const projectRoot = findProjectRoot(cwd || process.cwd());
-  const historyTracker = ctx.getHistoryTracker(projectRoot);
+  const chainId = await SessionManager.resolveChainId(projectRoot, request.tag);
+  const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
 
   const changeset = {
     id: String(Date.now()),
@@ -248,7 +250,7 @@ export async function handleReplaceAll(
  */
 function calculateChangeMetadata(
   filePath: string,
-  matches: Array<{ line: number; column: number; text: string }>,
+  matches: Array<{ line: number }>,
   oldContent: string,
   newContent: string
 ): ChangeMetadata | null {
