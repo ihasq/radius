@@ -3,7 +3,7 @@
  */
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
-import { radius } from "./helpers/radius";
+import { radius, extractTag } from "./helpers/radius";
 import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture } from "./helpers/fixtures";
 import { spawnSync } from "bun";
@@ -95,7 +95,7 @@ describe.skipIf(!TSL_AVAILABLE)("read-var with LSP", () => {
   test("falls back to engine: text for unknown language", async () => {
     const pyFile = join(tmpDir, "test.py");
 
-    await radius([
+    const r1 = await radius([
       "create",
       pyFile,
       "--content",
@@ -107,12 +107,12 @@ describe.skipIf(!TSL_AVAILABLE)("read-var with LSP", () => {
       pyFile,
       "--var",
       "userName",
-    ]);
+    ], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("engine: text");
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
   }, 30_000);
 
   test("falls back to engine: text when variable not found by LSP", async () => {
@@ -142,7 +142,7 @@ describe.skipIf(!TSL_AVAILABLE)("modify-var with LSP", () => {
       "userName",
       "--to",
       "displayName",
-    ]);
+    ], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("engine: lsp");
@@ -152,7 +152,7 @@ describe.skipIf(!TSL_AVAILABLE)("modify-var with LSP", () => {
     expect(content).toContain("displayName");
     expect(content).not.toContain("userName:");
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   }, 30_000);
 
   test("renames variable across multiple files", async () => {
@@ -165,7 +165,7 @@ describe.skipIf(!TSL_AVAILABLE)("modify-var with LSP", () => {
       "userName",
       "--to",
       "displayName",
-    ]);
+    ], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/files modified:\s*[2-9]/); // 最低2ファイル
@@ -177,33 +177,35 @@ describe.skipIf(!TSL_AVAILABLE)("modify-var with LSP", () => {
     );
     expect(utilsContent).toContain("displayName");
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   }, 30_000);
 
   test("falls back to text replacement for non-LSP languages", async () => {
     const pyFile = join(tmpDir, "test.py");
 
-    await radius([
+    const r1 = await radius([
       "create",
       pyFile,
       "--content",
       "userName = 'test'\nprint(userName)",
     ], { cwd: tmpDir });
 
-    const result = await radius([
+    const r2 = await radius([
       "modify-var",
       pyFile,
       "--from",
       "userName",
       "--to",
       "displayName",
-    ]);
+      "--tag",
+      extractTag(r1.stdout),
+    ], { cwd: tmpDir });
 
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("engine: text");
+    expect(r2.exitCode).toBe(0);
+    expect(r2.stdout).toContain("engine: text");
 
-    await radius(["undo"], { cwd: tmpDir });
-    await radius(["undo"], { cwd: tmpDir });
+    const r3 = await radius(["undo", "--tag", extractTag(r2.stdout)], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(r3.stdout)], { cwd: tmpDir });
   }, 30_000);
 
   test("undo after modify-var restores all files", async () => {
@@ -217,17 +219,17 @@ describe.skipIf(!TSL_AVAILABLE)("modify-var with LSP", () => {
     );
 
     // modify-var実行
-    await radius([
+    const r1 = await radius([
       "modify-var",
       filePath,
       "--from",
       "userName",
       "--to",
       "displayName",
-    ]);
+    ], { cwd: tmpDir });
 
     // undo
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
 
     // 復元確認
     const afterMain = require("node:fs").readFileSync(filePath, "utf-8");

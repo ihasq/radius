@@ -3,7 +3,7 @@
  */
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
-import { radius } from "./helpers/radius";
+import { radius, extractTag } from "./helpers/radius";
 import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture, readFixtureFile } from "./helpers/fixtures";
 import { join } from "node:path";
@@ -52,7 +52,7 @@ describe("rename-file import resolution", () => {
     expect(reexporterContent).toContain("./helpers");
     expect(reexporterContent).not.toContain("./utils");
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   });
 
   test("updates multiple references in same file", async () => {
@@ -60,7 +60,7 @@ describe("rename-file import resolution", () => {
     const oldPath = join(tmpDir, "src/utils.ts");
     const newPath = join(tmpDir, "src/helpers.ts");
 
-    await radius([
+    const result = await radius([
       "rename-file",
       oldPath,
       newPath,
@@ -73,14 +73,14 @@ describe("rename-file import resolution", () => {
     expect(helpersMatches).toBeTruthy();
     expect(reexporterContent).not.toContain("utils");
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   });
 
   test("updates self-imports when file moves directory", async () => {
     const oldPath = join(tmpDir, "src/lib/helpers.ts");
     const newPath = join(tmpDir, "src/moved-helpers.ts");
 
-    await radius([
+    const result = await radius([
       "rename-file",
       oldPath,
       newPath,
@@ -97,14 +97,14 @@ describe("rename-file import resolution", () => {
     expect(mainContent).toContain("./moved-helpers");
     expect(mainContent).not.toContain("./lib/helpers");
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   });
 
   test("preserves import specifier extension style", async () => {
     const oldPath = join(tmpDir, "src/utils.ts");
     const newPath = join(tmpDir, "src/helpers.ts");
 
-    await radius([
+    const result = await radius([
       "rename-file",
       oldPath,
       newPath,
@@ -117,7 +117,7 @@ describe("rename-file import resolution", () => {
     expect(reexporterContent).not.toContain("./helpers.ts");
     expect(reexporterContent).not.toContain("./helpers.js");
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   });
 
   test("handles file with no references", async () => {
@@ -125,7 +125,7 @@ describe("rename-file import resolution", () => {
     // 新しいファイルを作って、それをリネームする
     const newFile = join(tmpDir, "src/isolated.ts");
 
-    await radius([
+    const r1 = await radius([
       "create",
       newFile,
       "--content",
@@ -134,21 +134,23 @@ describe("rename-file import resolution", () => {
 
     const renamedFile = join(tmpDir, "src/renamed.ts");
 
-    const result = await radius([
+    const r2 = await radius([
       "rename-file",
       newFile,
       renamedFile,
+      "--tag",
+      extractTag(r1.stdout),
     ], { cwd: tmpDir });
 
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toMatch(/imports updated:\s*0/i);
+    expect(r2.exitCode).toBe(0);
+    expect(r2.stdout).toMatch(/imports updated:\s*0/i);
 
     // ファイルは移動している
     expect(existsSync(renamedFile)).toBe(true);
     expect(existsSync(newFile)).toBe(false);
 
-    await radius(["undo"], { cwd: tmpDir });
-    await radius(["undo"], { cwd: tmpDir });
+    const r3 = await radius(["undo", "--tag", extractTag(r2.stdout)], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(r3.stdout)], { cwd: tmpDir });
   });
 
   test("undo restores original file and all imports", async () => {
@@ -159,14 +161,14 @@ describe("rename-file import resolution", () => {
     const beforeReexporter = readFixtureFile(tmpDir, "src/re-exporter.ts");
 
     // rename実行
-    await radius([
+    const result = await radius([
       "rename-file",
       oldPath,
       newPath,
     ], { cwd: tmpDir });
 
     // undo
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
 
     // 元のファイルが存在
     expect(existsSync(oldPath)).toBe(true);

@@ -3,7 +3,7 @@
  */
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
-import { radius } from "./helpers/radius";
+import { radius, extractTag } from "./helpers/radius";
 import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture } from "./helpers/fixtures";
 import { spawnSync } from "bun";
@@ -67,14 +67,14 @@ describe.skipIf(!TSL_AVAILABLE)("LSP diagnostics", () => {
     expect(result.stdout).toMatch(/error/i);
 
     // Undo to restore
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   }, 30_000);
 
   test("str-replace fixing error shows clean diagnostics", async () => {
     const filePath = join(tmpDir, "src/main.ts");
 
     // まず壊す（より具体的な文字列を使用）
-    await radius(
+    const r1 = await radius(
       [
         "str-replace",
         filePath,
@@ -87,7 +87,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP diagnostics", () => {
     );
 
     // 修復する
-    const result = await radius(
+    const r2 = await radius(
       [
         "str-replace",
         filePath,
@@ -95,16 +95,18 @@ describe.skipIf(!TSL_AVAILABLE)("LSP diagnostics", () => {
         "export function greet(): string",
         "--new",
         "export function greet(): string {",
+        "--tag",
+        extractTag(r1.stdout),
       ],
       { cwd: tmpDir }
     );
 
-    expect(result.stdout).toContain("diagnostics:");
+    expect(r2.stdout).toContain("diagnostics:");
     // エラーが解消されているか確認
-    expect(result.stdout).not.toMatch(/error\[/);
+    expect(r2.stdout).not.toMatch(/error\[/);
 
-    await radius(["undo"], { cwd: tmpDir });
-    await radius(["undo"], { cwd: tmpDir });
+    const r3 = await radius(["undo", "--tag", extractTag(r2.stdout)], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(r3.stdout)], { cwd: tmpDir });
   }, 30_000);
 
   test("insert introducing type error reports diagnostic", async () => {
@@ -127,7 +129,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP diagnostics", () => {
     expect(result.stdout).toContain("diagnostics:");
     expect(result.stdout).toMatch(/error/i);
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   }, 30_000);
 
   test("create with valid code shows no errors", async () => {
@@ -148,7 +150,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP diagnostics", () => {
     // エラーがないことを確認
     expect(result.stdout).not.toMatch(/error\[/);
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   }, 30_000);
 
   test("modify-var reports diagnostics after rename", async () => {
@@ -170,18 +172,18 @@ describe.skipIf(!TSL_AVAILABLE)("LSP diagnostics", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("diagnostics:");
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
   }, 30_000);
 
   test("diagnostics unavailable for non-LSP files", async () => {
     const pyFile = join(tmpDir, "test.py");
 
-    await radius(
+    const r1 = await radius(
       ["create", pyFile, "--content", "x = 1"],
       { cwd: tmpDir }
     );
 
-    const result = await radius(
+    const r2 = await radius(
       [
         "str-replace",
         pyFile,
@@ -189,17 +191,19 @@ describe.skipIf(!TSL_AVAILABLE)("LSP diagnostics", () => {
         "x = 1",
         "--new",
         "x = 2",
+        "--tag",
+        extractTag(r1.stdout),
       ],
       { cwd: tmpDir }
     );
 
-    expect(result.exitCode).toBe(0);
+    expect(r2.exitCode).toBe(0);
     // Python用のLSPがない場合、診断セクションは出力されない
-    expect(result.stdout).not.toContain("error");
-    expect(result.stdout).toContain("replaced 1 occurrence");
+    expect(r2.stdout).not.toContain("error");
+    expect(r2.stdout).toContain("replaced 1 occurrence");
 
-    await radius(["undo"], { cwd: tmpDir });
-    await radius(["undo"], { cwd: tmpDir });
+    const r3 = await radius(["undo", "--tag", extractTag(r2.stdout)], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(r3.stdout)], { cwd: tmpDir });
   }, 30_000);
 });
 

@@ -3,7 +3,7 @@
  */
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
-import { radius } from "./helpers/radius";
+import { radius, extractTag } from "./helpers/radius";
 import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture } from "./helpers/fixtures";
 import { join } from "node:path";
@@ -160,7 +160,7 @@ describe("colors", () => {
           "--new",
           'const displayName: string = "default_user"',
         ],
-        { env: { FORCE_COLOR: "1" } }
+        { cwd: tmpDir, env: { FORCE_COLOR: "1" } }
       );
 
       expect(result.exitCode).toBe(0);
@@ -169,7 +169,7 @@ describe("colors", () => {
       expect(result.stdout).toContain("\x1b[2m"); // dim (muted)
       expect(result.stdout).toContain("radius-tag:");
 
-      await radius(["undo"], { cwd: tmpDir });
+      await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
     });
 
     test("tag output has no ANSI codes when NO_COLOR=1", async () => {
@@ -184,7 +184,7 @@ describe("colors", () => {
           "--new",
           'const displayName: string = "default_user"',
         ],
-        { env: { NO_COLOR: "1" } }
+        { cwd: tmpDir, env: { NO_COLOR: "1" } }
       );
 
       expect(result.exitCode).toBe(0);
@@ -192,7 +192,7 @@ describe("colors", () => {
       expect(result.stdout).not.toContain("\x1b[");
       expect(result.stdout).toContain("radius-tag:");
 
-      await radius(["undo"], { cwd: tmpDir });
+      await radius(["undo", "--tag", extractTag(result.stdout)], { cwd: tmpDir });
     });
 
     test("warning output contains ANSI codes when FORCE_COLOR=1", async () => {

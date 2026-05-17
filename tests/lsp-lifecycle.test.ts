@@ -3,7 +3,7 @@
  */
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
-import { radius } from "./helpers/radius";
+import { radius, extractTag } from "./helpers/radius";
 import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture } from "./helpers/fixtures";
 import { spawnSync } from "bun";
@@ -104,7 +104,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP client lifecycle", () => {
       "export function greet(): string {",
       "--new",
       "export function greet(): string",
-    ]);
+    ], { cwd: tmpDir });
 
     expect(r1.exitCode).toBe(0);
     expect(r1.stdout).toContain("diagnostics:");
@@ -118,67 +118,75 @@ describe.skipIf(!TSL_AVAILABLE)("LSP client lifecycle", () => {
       "export function greet(): string",
       "--new",
       "export function greet(): string {",
-    ]);
+      "--tag",
+      extractTag(r1.stdout),
+    ], { cwd: tmpDir });
 
     expect(r2.exitCode).toBe(0);
     expect(r2.stdout).toContain("diagnostics:");
     // エラーが解消されている
     expect(r2.stdout).not.toMatch(/error\[/);
 
-    await radius(["undo"], { cwd: tmpDir });
-    await radius(["undo"], { cwd: tmpDir });
+    const r3 = await radius(["undo", "--tag", extractTag(r2.stdout)], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(r3.stdout)], { cwd: tmpDir });
   }, 30_000);
 
   test("consecutive modify-var maintains LSP consistency", async () => {
     const filePath = join(tmpDir, "src/main.ts");
 
     // A→B
-    await radius([
+    const r1 = await radius([
       "modify-var",
       filePath,
       "--from",
       "userName",
       "--to",
       "userNameB",
-    ]);
+    ], { cwd: tmpDir });
 
     // B の read-var
-    const r1 = await radius([
+    const r2 = await radius([
       "read-var",
       filePath,
       "--var",
       "userNameB",
-    ]);
+      "--tag",
+      extractTag(r1.stdout),
+    ], { cwd: tmpDir });
 
-    expect(r1.exitCode).toBe(0);
-    expect(r1.stdout).toContain("engine: lsp");
-    expect(r1.stdout).toContain("userNameB");
+    expect(r2.exitCode).toBe(0);
+    expect(r2.stdout).toContain("engine: lsp");
+    expect(r2.stdout).toContain("userNameB");
 
     // B→C
-    await radius([
+    const r3 = await radius([
       "modify-var",
       filePath,
       "--from",
       "userNameB",
       "--to",
       "userNameC",
-    ]);
+      "--tag",
+      extractTag(r2.stdout),
+    ], { cwd: tmpDir });
 
     // C の read-var
-    const r2 = await radius([
+    const r4 = await radius([
       "read-var",
       filePath,
       "--var",
       "userNameC",
-    ]);
+      "--tag",
+      extractTag(r3.stdout),
+    ], { cwd: tmpDir });
 
-    expect(r2.exitCode).toBe(0);
-    expect(r2.stdout).toContain("engine: lsp");
-    expect(r2.stdout).toContain("userNameC");
+    expect(r4.exitCode).toBe(0);
+    expect(r4.stdout).toContain("engine: lsp");
+    expect(r4.stdout).toContain("userNameC");
 
     // クリーンアップ
-    await radius(["undo"], { cwd: tmpDir });
-    await radius(["undo"], { cwd: tmpDir });
+    const r5 = await radius(["undo", "--tag", extractTag(r4.stdout)], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(r5.stdout)], { cwd: tmpDir });
   }, 30_000);
 
   test("daemon stop cleanly shuts down LSP", async () => {
