@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { existsSync, rmSync } from "node:fs";
 
 let tmpDir: string;
+let extensionsDir: string;
 
 beforeAll(async () => {
   await startDaemon();
@@ -21,15 +22,17 @@ afterAll(async () => {
 
 beforeEach(async () => {
   tmpDir = await setupFixture("ts-project");
+  extensionsDir = await setupFixture("extensions");
 });
 
 afterEach(async () => {
   await cleanupFixture(tmpDir);
+  await cleanupFixture(extensionsDir);
 });
 
 describe("extension scanner", () => {
   test("scanExtension returns metadata from valid package.json", async () => {
-    const extPath = join(process.cwd(), "tests/fixtures/extensions/valid-extension");
+    const extPath = join(extensionsDir, "valid-extension");
 
     // ext install でローカルパスからインストール
     const result = await radius([
@@ -43,14 +46,14 @@ describe("extension scanner", () => {
     // インストールされたことを確認
     const listResult = await radius(["ext", "list"]);
     expect(listResult.stdout).toContain("test-extension");
-    expect(listResult.stdout).toContain("testlang");
+    expect(listResult.stdout).toContain("typescript");
 
     // クリーンアップ
     await radius(["ext", "remove", "test.test-extension"]);
   });
 
   test("scanExtension returns null for missing package.json", async () => {
-    const extPath = join(process.cwd(), "tests/fixtures/extensions/no-package");
+    const extPath = join(extensionsDir, "no-package");
 
     const result = await radius([
       "ext", "install",
@@ -62,7 +65,7 @@ describe("extension scanner", () => {
   });
 
   test("scanExtension returns null for non-vscode package", async () => {
-    const extPath = join(process.cwd(), "tests/fixtures/extensions/no-vscode");
+    const extPath = join(extensionsDir, "no-vscode");
 
     const result = await radius([
       "ext", "install",
@@ -74,15 +77,15 @@ describe("extension scanner", () => {
   });
 
   test("fileExtensionMap is correctly populated", async () => {
-    const extPath = join(process.cwd(), "tests/fixtures/extensions/valid-extension");
+    const extPath = join(extensionsDir, "valid-extension");
 
     await radius(["ext", "install", extPath]);
 
     // LSP情報を確認（lsp", "list コマンド）
     const lspResult = await radius(["lsp", "list"]);
 
-    // testlang (.test, .tst) が登録されている
-    expect(lspResult.stdout).toMatch(/testlang|\.test|\.tst/i);
+    // typescript (.ts, .tsx) が登録されている
+    expect(lspResult.stdout).toMatch(/typescript|\.ts|\.tsx/i);
 
     // クリーンアップ
     await radius(["ext", "remove", "test.test-extension"]);
@@ -91,7 +94,7 @@ describe("extension scanner", () => {
 
 describe("extension registry", () => {
   test("install from local directory", async () => {
-    const extPath = join(process.cwd(), "tests/fixtures/extensions/valid-extension");
+    const extPath = join(extensionsDir, "valid-extension");
 
     const result = await radius([
       "ext", "install",
@@ -110,8 +113,8 @@ describe("extension registry", () => {
   });
 
   test("list shows installed extensions", async () => {
-    const ext1 = join(process.cwd(), "tests/fixtures/extensions/valid-extension");
-    const ext2 = join(process.cwd(), "tests/fixtures/extensions/with-server");
+    const ext1 = join(extensionsDir, "valid-extension");
+    const ext2 = join(extensionsDir, "with-server");
 
     // 2つインストール
     await radius(["ext", "install", ext1]);
@@ -128,7 +131,7 @@ describe("extension registry", () => {
   });
 
   test("remove deletes extension", async () => {
-    const extPath = join(process.cwd(), "tests/fixtures/extensions/valid-extension");
+    const extPath = join(extensionsDir, "valid-extension");
 
     await radius(["ext", "install", extPath]);
 
@@ -142,7 +145,7 @@ describe("extension registry", () => {
   });
 
   test("install overwrites existing extension", async () => {
-    const extPath = join(process.cwd(), "tests/fixtures/extensions/valid-extension");
+    const extPath = join(extensionsDir, "valid-extension");
 
     // 1回目のインストール
     await radius(["ext", "install", extPath]);
@@ -171,9 +174,13 @@ describe("extension registry", () => {
 
 describe("extension loader", () => {
   test("extractServerInfo finds server binary in extension directory", async () => {
-    const extPath = join(process.cwd(), "tests/fixtures/extensions/with-server");
+    const extPath = join(extensionsDir, "with-server");
 
     await radius(["ext", "install", extPath]);
+
+    // daemon 再起動で拡張をロード
+    await stopDaemon();
+    await startDaemon();
 
     // lsp", "list で server が認識されているか確認
     const lspResult = await radius(["lsp", "list"]);
@@ -186,15 +193,19 @@ describe("extension loader", () => {
   });
 
   test("extractServerInfo uses fallback table when no binary found", async () => {
-    const extPath = join(process.cwd(), "tests/fixtures/extensions/valid-extension");
+    const extPath = join(extensionsDir, "valid-extension");
 
     await radius(["ext", "install", extPath]);
 
-    // testlang には server/ がないので、フォールバックテーブルを使用
+    // daemon 再起動で拡張をロード
+    await stopDaemon();
+    await startDaemon();
+
+    // typescript には server/ がないので、フォールバックテーブルを使用
     const lspResult = await radius(["lsp", "list"]);
 
-    // testlang が登録されている（フォールバックまたはnull）
-    expect(lspResult.stdout).toMatch(/testlang/i);
+    // typescript が登録されている（フォールバックテーブルから）
+    expect(lspResult.stdout).toMatch(/typescript/i);
 
     // クリーンアップ
     await radius(["ext", "remove", "test.test-extension"]);

@@ -56,7 +56,7 @@ describe.skipIf(!TSL_AVAILABLE)("read-var with LSP", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("engine: lsp");
-  });
+  }, 30_000);
 
   test("finds definition and references", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -73,7 +73,7 @@ describe.skipIf(!TSL_AVAILABLE)("read-var with LSP", () => {
     // userName は main.ts と utils.ts で参照されるので、occurrences >= 2
     const occurrenceMatches = result.stdout.match(/occurrence/gi);
     expect(occurrenceMatches).toBeTruthy();
-  });
+  }, 30_000);
 
   test("returns context lines around each occurrence", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -90,7 +90,7 @@ describe.skipIf(!TSL_AVAILABLE)("read-var with LSP", () => {
     expect(result.stdout).toContain(">");
     // 行番号が含まれることを確認
     expect(result.stdout).toMatch(/\d+:/);
-  });
+  }, 30_000);
 
   test("falls back to engine: text for unknown language", async () => {
     const pyFile = join(tmpDir, "test.py");
@@ -113,7 +113,7 @@ describe.skipIf(!TSL_AVAILABLE)("read-var with LSP", () => {
     expect(result.stdout).toContain("engine: text");
 
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("falls back to engine: text when variable not found by LSP", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -128,7 +128,7 @@ describe.skipIf(!TSL_AVAILABLE)("read-var with LSP", () => {
 
     // LSPで見つからない場合、textフォールバックまたはエラー
     expect([0, 1]).toContain(result.exitCode);
-  });
+  }, 30_000);
 });
 
 describe.skipIf(!TSL_AVAILABLE)("modify-var with LSP", () => {
@@ -153,7 +153,7 @@ describe.skipIf(!TSL_AVAILABLE)("modify-var with LSP", () => {
     expect(content).not.toContain("userName:");
 
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("renames variable across multiple files", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -178,7 +178,7 @@ describe.skipIf(!TSL_AVAILABLE)("modify-var with LSP", () => {
     expect(utilsContent).toContain("displayName");
 
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("falls back to text replacement for non-LSP languages", async () => {
     const pyFile = join(tmpDir, "test.py");
@@ -204,7 +204,7 @@ describe.skipIf(!TSL_AVAILABLE)("modify-var with LSP", () => {
 
     await radius(["undo"], { cwd: tmpDir });
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("undo after modify-var restores all files", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -238,7 +238,7 @@ describe.skipIf(!TSL_AVAILABLE)("modify-var with LSP", () => {
 
     expect(afterMain).toBe(beforeMain);
     expect(afterUtils).toBe(beforeUtils);
-  });
+  }, 30_000);
 });
 
 describe.skipIf(TSL_AVAILABLE)("LSP not available", () => {

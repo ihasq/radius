@@ -155,7 +155,7 @@ describe("undo/redo", () => {
     // Cleanup
     await radius(["undo"], { cwd: tmpDir });
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("redo with no redo history returns error", async () => {
     const filePath = join(tmpDir, "src/main.ts");

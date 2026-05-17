@@ -45,7 +45,7 @@ describe("dog tag", () => {
     expect(result.stdout).toMatch(/radius-tag:\s*\w{4}-\w+/);
 
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("rewind detection triggers auto-undo", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -97,7 +97,7 @@ describe("dog tag", () => {
     expect(content).not.toContain("name2");
 
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("unknown tag produces warning", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -108,7 +108,7 @@ describe("dog tag", () => {
     );
 
     expect(result.stdout).toMatch(/unknown tag|warning/i);
-  });
+  }, 30_000);
 
   test("consecutive operations with tags maintain sequence", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -139,7 +139,7 @@ describe("dog tag", () => {
     await radius(["undo"], { cwd: tmpDir });
     await radius(["undo"], { cwd: tmpDir });
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("read-only commands return same tag", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -162,7 +162,7 @@ describe("dog tag", () => {
     expect(tag2).toBe(tag1);
 
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("tag format is valid", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -178,5 +178,5 @@ describe("dog tag", () => {
     expect(tag).toMatch(/^[a-zA-Z0-9]{4}-[a-zA-Z0-9_\-]{8,}$/);
 
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 });

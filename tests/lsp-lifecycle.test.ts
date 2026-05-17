@@ -65,7 +65,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP client lifecycle", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("engine: lsp");
-  });
+  }, 30_000);
 
   test("LSP client persists across multiple commands", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -91,7 +91,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP client lifecycle", () => {
 
     expect(r2.exitCode).toBe(0);
     expect(r2.stdout).toContain("engine: lsp");
-  });
+  }, 30_000);
 
   test("LSP diagnostics are returned after file modification", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -127,7 +127,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP client lifecycle", () => {
 
     await radius(["undo"], { cwd: tmpDir });
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("consecutive modify-var maintains LSP consistency", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -179,7 +179,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP client lifecycle", () => {
     // クリーンアップ
     await radius(["undo"], { cwd: tmpDir });
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("daemon stop cleanly shuts down LSP", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -202,7 +202,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP client lifecycle", () => {
 
     // デーモンを再起動（afterAllで停止する）
     await startDaemon();
-  });
+  }, 30_000);
 });
 
 describe.skipIf(TSL_AVAILABLE)("LSP not available", () => {

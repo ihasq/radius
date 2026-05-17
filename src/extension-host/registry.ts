@@ -205,12 +205,18 @@ export class ExtensionRegistry {
       return false;
     }
 
-    // ディレクトリを削除
-    try {
-      rmSync(ext.extensionPath, { recursive: true, force: true });
-    } catch (err) {
-      console.warn(`[registry] Failed to remove directory: ${ext.extensionPath}`);
+    // ディレクトリ削除: ~/.radius/extensions/ 配下にある場合のみ
+    const extensionsDir = getExtensionsDir();
+    const isInExtensionsDir = ext.extensionPath.startsWith(extensionsDir);
+
+    if (isInExtensionsDir) {
+      try {
+        rmSync(ext.extensionPath, { recursive: true, force: true });
+      } catch (err) {
+        console.warn(`[registry] Failed to remove directory: ${ext.extensionPath}`);
+      }
     }
+    // ディレクトリインストールの場合はファイル削除をスキップ
 
     // レジストリから削除
     this.extensions.delete(extensionId);

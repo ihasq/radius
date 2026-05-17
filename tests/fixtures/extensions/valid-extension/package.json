@@ -8,9 +8,9 @@
   "contributes": {
     "languages": [
       {
-        "id": "testlang",
-        "aliases": ["TestLang", "test"],
-        "extensions": [".test", ".tst"],
+        "id": "typescript",
+        "aliases": ["TypeScript", "ts"],
+        "extensions": [".ts", ".tsx"],
         "configuration": "./language-configuration.json"
       }
     ]

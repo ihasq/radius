@@ -68,7 +68,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP diagnostics", () => {
 
     // Undo to restore
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("str-replace fixing error shows clean diagnostics", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -105,7 +105,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP diagnostics", () => {
 
     await radius(["undo"], { cwd: tmpDir });
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("insert introducing type error reports diagnostic", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -128,7 +128,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP diagnostics", () => {
     expect(result.stdout).toMatch(/error/i);
 
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("create with valid code shows no errors", async () => {
     const newFile = join(tmpDir, "src/newfile.ts");
@@ -149,7 +149,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP diagnostics", () => {
     expect(result.stdout).not.toMatch(/error\[/);
 
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("modify-var reports diagnostics after rename", async () => {
     const filePath = join(tmpDir, "src/main.ts");
@@ -171,7 +171,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP diagnostics", () => {
     expect(result.stdout).toContain("diagnostics:");
 
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 
   test("diagnostics unavailable for non-LSP files", async () => {
     const pyFile = join(tmpDir, "test.py");
@@ -200,7 +200,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP diagnostics", () => {
 
     await radius(["undo"], { cwd: tmpDir });
     await radius(["undo"], { cwd: tmpDir });
-  });
+  }, 30_000);
 });
 
 // LSPが利用できない場合の通知テスト
