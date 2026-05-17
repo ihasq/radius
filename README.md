@@ -7,9 +7,12 @@ Radius is a daemon-based code editing system designed for AI coding agents. It p
 ## Features
 
 - **LSP-powered semantic operations**: Variable reading and renaming with full semantic understanding
+- **Code actions and formatting**: Apply LSP quick fixes, refactors, and document formatting
+- **LLM-readable views**: Outline, hover info, diagnostics, type hierarchy, and code lens
 - **Code visualization**: Generate Mermaid graphs for imports, references, and call hierarchies
+- **Language tools**: Comment toggling, snippet insertion, semantic tokens, and VS Code task runner
 - **Undo/redo history**: Per-project change tracking with full file restoration
-- **Git conflict resolution**: Parse and resolve merge conflicts programmatically
+- **Git integration**: Conflict resolution and diff viewing
 - **Import-aware file renaming**: Automatically update import statements across the project
 - **Multi-agent support**: Tag-chain based agent identification with conflict detection and resolution
 - **Session management**: Dog tag-based conversation tracking with automatic rewind detection
@@ -124,6 +127,34 @@ radius rename-file <old-path> --to <new-path>
 ```bash
 radius undo    # Undo last change
 radius redo    # Redo undone change
+```
+
+#### Code actions and formatting (Phase 17)
+```bash
+radius fix <file> --list                # List available code actions
+radius fix <file> [--line N] [--id N]   # Apply code action
+radius format <file>                    # Apply LSP formatting
+```
+
+#### LLM-readable views (Phase 18)
+```bash
+radius outline <file>                        # Symbol tree
+radius hover <file> --line N --col N         # Type and docs at position
+radius problems [<file-or-dir>]              # Diagnostics (errors/warnings)
+radius typehierarchy <file> --symbol <name>  # Class/interface hierarchy
+radius diff <file> [--ref <git-ref>]         # Git diff
+radius codelens <file>                       # Reference/implementation counts
+```
+
+#### Language tools (Phase 19)
+```bash
+radius comment <file> --line N [--uncomment]       # Toggle line comment
+radius comment <file> --range S:E [--uncomment]    # Toggle block comment
+radius snippet --list [--language <lang>]          # List snippets
+radius snippet <file> --name <name> --line N       # Insert snippet
+radius tokens <file> [--range S:E]                 # Semantic tokens
+radius task list                                   # List VS Code tasks
+radius task run <name>                             # Run task
 ```
 
 #### Code visualization (Mermaid graphs)

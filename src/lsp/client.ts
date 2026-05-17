@@ -5,7 +5,13 @@
 
 import type { Subprocess } from "bun";
 import { writeMessage, LspReader } from "./transport";
-import type { LspLocation, LspPosition, LspDocumentSymbol, LspWorkspaceEdit, LspDiagnostic, LspCallHierarchyItem, LspCallHierarchyIncomingCall, LspCallHierarchyOutgoingCall } from "./types";
+import type {
+  LspLocation, LspPosition, LspDocumentSymbol, LspWorkspaceEdit, LspDiagnostic,
+  LspCallHierarchyItem, LspCallHierarchyIncomingCall, LspCallHierarchyOutgoingCall,
+  LspCodeAction, LspFormattingOptions, LspTextEdit, LspRange,
+  LspHover, LspTypeHierarchyItem, LspCodeLens, LspSemanticTokens
+} from "./types";
+import { SemanticTokenTypes, SemanticTokenModifiers } from "./types";
 
 interface PendingRequest {
   resolve: (result: any) => void;
@@ -67,6 +73,26 @@ export class LspClient {
           callHierarchy: {
             dynamicRegistration: false,
           },
+          // Phase 17: Code Actions / Format
+          codeAction: {
+            dynamicRegistration: false,
+            codeActionLiteralSupport: {
+              codeActionKind: { valueSet: ["quickfix", "refactor", "source"] }
+            }
+          },
+          formatting: { dynamicRegistration: false },
+          // Phase 18: LLM可読ビュー
+          hover: { dynamicRegistration: false, contentFormat: ["plaintext", "markdown"] },
+          typeHierarchy: { dynamicRegistration: false },
+          codeLens: { dynamicRegistration: false },
+          // Phase 19: Semantic Tokens
+          semanticTokens: {
+            dynamicRegistration: false,
+            tokenTypes: SemanticTokenTypes,
+            tokenModifiers: SemanticTokenModifiers,
+            formats: ["relative"],
+            requests: { full: true, range: true }
+          }
         },
       },
       workspaceFolders: [{ uri: this.rootUri, name: "root" }],
@@ -228,6 +254,116 @@ export class LspClient {
     } else {
       this.diagnostics.clear();
     }
+  }
+
+  // ===== Phase 17: Code Actions / Format =====
+
+  /** 指定範囲のコードアクションを取得する。 */
+  async codeAction(
+    uri: string,
+    range: LspRange,
+    diagnostics: LspDiagnostic[]
+  ): Promise<LspCodeAction[]> {
+    const result = await this.request("textDocument/codeAction", {
+      textDocument: { uri },
+      range,
+      context: { diagnostics },
+    });
+    return result || [];
+  }
+
+  /** ドキュメントのフォーマットを実行する。 */
+  async formatting(
+    uri: string,
+    options: LspFormattingOptions
+  ): Promise<LspTextEdit[]> {
+    const result = await this.request("textDocument/formatting", {
+      textDocument: { uri },
+      options,
+    });
+    return result || [];
+  }
+
+  /** workspace/executeCommand を実行する。 */
+  async executeCommand(command: string, args?: unknown[]): Promise<unknown> {
+    return await this.request("workspace/executeCommand", {
+      command,
+      arguments: args,
+    });
+  }
+
+  // ===== Phase 18: LLM可読ビュー =====
+
+  /** 指定位置のホバー情報を取得する。 */
+  async hover(uri: string, position: LspPosition): Promise<LspHover | null> {
+    const result = await this.request("textDocument/hover", {
+      textDocument: { uri },
+      position,
+    });
+    return result || null;
+  }
+
+  /** 型階層の準備。 */
+  async prepareTypeHierarchy(
+    uri: string,
+    position: LspPosition
+  ): Promise<LspTypeHierarchyItem[]> {
+    const result = await this.request("textDocument/prepareTypeHierarchy", {
+      textDocument: { uri },
+      position,
+    });
+    return result || [];
+  }
+
+  /** 指定アイテムのスーパータイプを取得する。 */
+  async typeHierarchySupertypes(
+    item: LspTypeHierarchyItem
+  ): Promise<LspTypeHierarchyItem[]> {
+    const result = await this.request("typeHierarchy/supertypes", { item });
+    return result || [];
+  }
+
+  /** 指定アイテムのサブタイプを取得する。 */
+  async typeHierarchySubtypes(
+    item: LspTypeHierarchyItem
+  ): Promise<LspTypeHierarchyItem[]> {
+    const result = await this.request("typeHierarchy/subtypes", { item });
+    return result || [];
+  }
+
+  /** コードレンズを取得する。 */
+  async codeLens(uri: string): Promise<LspCodeLens[]> {
+    const result = await this.request("textDocument/codeLens", {
+      textDocument: { uri },
+    });
+    return result || [];
+  }
+
+  /** コードレンズの詳細を取得する。 */
+  async codeLensResolve(lens: LspCodeLens): Promise<LspCodeLens> {
+    return await this.request("codeLens/resolve", lens);
+  }
+
+  // ===== Phase 19: Semantic Tokens =====
+
+  /** ドキュメント全体のセマンティックトークンを取得する。 */
+  async semanticTokensFull(uri: string): Promise<LspSemanticTokens> {
+    const result = await this.request("textDocument/semanticTokens/full", {
+      textDocument: { uri },
+    });
+    return result || { data: [] };
+  }
+
+  /** 指定範囲のセマンティックトークンを取得する。 */
+  async semanticTokensRange(
+    uri: string,
+    range: LspRange
+  ): Promise<LspSemanticTokens> {
+    const result = await this.request("textDocument/semanticTokens/range", {
+      textDocument: { uri },
+      range,
+    });
+    return result || { data: [] };
   }
 
   /** 言語サーバを停止する。 */

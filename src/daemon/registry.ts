@@ -24,6 +24,18 @@ import { handleReplaceAll } from "../core/commands/replace-all";
 import { handleAcceptChange } from "../core/commands/accept-change";
 import { handleChallengeChange } from "../core/commands/challenge-change";
 import { handleListNotifications } from "../core/commands/list-notifications";
+import { handleFix } from "../core/commands/fix";
+import { handleFormat } from "../core/commands/format";
+import { handleOutline } from "../core/commands/outline";
+import { handleHover } from "../core/commands/hover";
+import { handleProblems } from "../core/commands/problems";
+import { handleTypeHierarchy } from "../core/commands/typehierarchy";
+import { handleDiff } from "../core/commands/diff";
+import { handleCodeLens } from "../core/commands/codelens";
+import { handleComment } from "../core/commands/comment";
+import { handleSnippet } from "../core/commands/snippet";
+import { handleTokens } from "../core/commands/tokens";
+import { handleTask } from "../core/commands/task";
 import { findProjectRoot } from "../shared/project";
 import type { IpcRequest, IpcResponse } from "../shared/types";
 import type { LspManager } from "../lsp/manager";
@@ -279,6 +291,128 @@ export const handlers: HandlerDef[] = [
     requiresSession: true,
     handler: async (request, ctx) => {
       return await handleListNotifications(request, ctx);
+    },
+  },
+  // Phase 17: Code Actions / Format
+  {
+    command: "fix",
+    requiresSession: true,
+    isWriteCommand: true,
+    handler: async (request, ctx) => {
+      const filePath = request.args.file as string | undefined;
+      if (!filePath) {
+        return { ok: false, error: "Missing required arg: file" };
+      }
+      const projectRoot = findProjectRoot(filePath);
+      const chainId = (request as any).chainId as string;
+      const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
+      return await handleFix(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
+    },
+  },
+  {
+    command: "format",
+    requiresSession: true,
+    isWriteCommand: true,
+    handler: async (request, ctx) => {
+      const filePath = request.args.file as string | undefined;
+      if (!filePath) {
+        return { ok: false, error: "Missing required arg: file" };
+      }
+      const projectRoot = findProjectRoot(filePath);
+      const chainId = (request as any).chainId as string;
+      const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
+      return await handleFormat(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
+    },
+  },
+  // Phase 18: LLM可読ビュー
+  {
+    command: "outline",
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      return await handleOutline(request.args, ctx.lspManager, ctx.bufferManager);
+    },
+  },
+  {
+    command: "hover",
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      return await handleHover(request.args, ctx.lspManager, ctx.bufferManager);
+    },
+  },
+  {
+    command: "problems",
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      const cwd = request.cwd || process.cwd();
+      return await handleProblems(request.args, ctx.lspManager, ctx.bufferManager, cwd);
+    },
+  },
+  {
+    command: "typehierarchy",
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      return await handleTypeHierarchy(request.args, ctx.lspManager, ctx.bufferManager);
+    },
+  },
+  {
+    command: "diff",
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      return await handleDiff(request.args);
+    },
+  },
+  {
+    command: "codelens",
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      return await handleCodeLens(request.args, ctx.lspManager, ctx.bufferManager);
+    },
+  },
+  // Phase 19: Language Configuration / Snippets / Semantic Tokens / Tasks
+  {
+    command: "comment",
+    requiresSession: true,
+    isWriteCommand: true,
+    handler: async (request, ctx) => {
+      const filePath = request.args.file as string | undefined;
+      if (!filePath) {
+        return { ok: false, error: "Missing required arg: file" };
+      }
+      const projectRoot = findProjectRoot(filePath);
+      const chainId = (request as any).chainId as string;
+      const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
+      return await handleComment(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
+    },
+  },
+  {
+    command: "snippet",
+    requiresSession: true,
+    isWriteCommand: true,
+    handler: async (request, ctx) => {
+      const filePath = request.args.file as string | undefined;
+      if (filePath) {
+        const projectRoot = findProjectRoot(filePath);
+        const chainId = (request as any).chainId as string;
+        const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
+        return await handleSnippet(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
+      }
+      // --list mode doesn't require file
+      return await handleSnippet(request.args, ctx.lspManager, null, ctx.bufferManager);
+    },
+  },
+  {
+    command: "tokens",
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      return await handleTokens(request.args, ctx.lspManager, ctx.bufferManager);
+    },
+  },
+  {
+    command: "task",
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      const cwd = request.cwd || process.cwd();
+      return await handleTask(request.args, cwd);
     },
   },
 ];

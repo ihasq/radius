@@ -1,0 +1,8 @@
+{
+  "name": "ts-project",
+  "version": "1.0.0",
+  "private": true,
+  "devDependencies": {
+    "@types/node": "^25.8.0"
+  }
+}

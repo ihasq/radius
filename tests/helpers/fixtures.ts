@@ -2,11 +2,36 @@
  * テストフィクスチャヘルパー
  */
 
-import { mkdtempSync, rmSync, cpSync, readFileSync, readdirSync, existsSync, unlinkSync } from "node:fs";
+import { mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, unlinkSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
+import { execSync } from "node:child_process";
 
 const cleanupList: string[] = [];
+const installedFixtures = new Set<string>();
+
+/**
+ * フィクスチャの依存関係をインストールする。
+ * package.json が存在し、node_modules がない場合に bun install を実行。
+ * 一度インストールしたフィクスチャは再実行しない。
+ */
+export function ensureFixtureDeps(fixtureName: string): void {
+  if (installedFixtures.has(fixtureName)) return;
+
+  const fixtureDir = join(process.cwd(), "tests/fixtures", fixtureName);
+  const packageJsonPath = join(fixtureDir, "package.json");
+  const nodeModulesPath = join(fixtureDir, "node_modules");
+
+  if (existsSync(packageJsonPath) && !existsSync(nodeModulesPath)) {
+    try {
+      execSync("bun install", { cwd: fixtureDir, stdio: "ignore" });
+    } catch {
+      // インストール失敗は無視（CI環境では事前にインストール済みの可能性）
+    }
+  }
+
+  installedFixtures.add(fixtureName);
+}
 
 /**
  * フィクスチャディレクトリを一時ディレクトリにコピーし、
@@ -16,6 +41,9 @@ const cleanupList: string[] = [];
 export async function setupFixture(fixtureName: string): Promise<string> {
   // セッション分離: 全 session.json を削除
   cleanupAllSessions();
+
+  // 依存関係を確保
+  ensureFixtureDeps(fixtureName);
 
   const fixtureDir = join(process.cwd(), "tests/fixtures", fixtureName);
   const tmpDir = mkdtempSync(join(tmpdir(), "radius-test-"));
@@ -116,4 +144,14 @@ export async function cleanupAll(): Promise<void> {
  */
 export function readFixtureFile(tmpDir: string, relativePath: string): string {
   return readFileSync(join(tmpDir, relativePath), "utf-8");
+}
+
+/**
+ * フィクスチャにファイルを書き込む。
+ */
+export function writeFixtureFile(tmpDir: string, relativePath: string, content: string): void {
+  const filePath = join(tmpDir, relativePath);
+  const { dirname } = require("node:path");
+  mkdirSync(dirname(filePath), { recursive: true });
+  writeFileSync(filePath, content, "utf-8");
 }

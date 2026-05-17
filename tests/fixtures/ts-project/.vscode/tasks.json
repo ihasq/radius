@@ -1,0 +1,15 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "type": "shell",
+      "command": "echo build-ok"
+    },
+    {
+      "label": "test",
+      "type": "shell",
+      "command": "echo test-ok"
+    }
+  ]
+}
