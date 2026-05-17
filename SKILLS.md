@@ -10,6 +10,7 @@ Copy the desired skill directory to your skills location:
 # Claude Code (user-wide)
 cp -r skills/radius-edit ~/.claude/skills/
 cp -r skills/radius-refactor ~/.claude/skills/
+cp -r skills/radius-visualize ~/.claude/skills/
 cp -r skills/radius-session ~/.claude/skills/
 
 # Or for project-specific skills
@@ -22,6 +23,7 @@ cp -r skills/radius-edit .claude/skills/
 |-------|-------------|
 | [`radius-edit`](skills/radius-edit/SKILL.md) | Edit files using str-replace, insert, and create commands |
 | [`radius-refactor`](skills/radius-refactor/SKILL.md) | Semantic refactoring with LSP-powered variable and file operations |
+| [`radius-visualize`](skills/radius-visualize/SKILL.md) | Generate Mermaid diagrams for module dependencies, references, and call graphs |
 | [`radius-session`](skills/radius-session/SKILL.md) | Manage conversation state with dog tag tracking |
 
 ## Quick Reference

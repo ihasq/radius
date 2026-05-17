@@ -7,9 +7,11 @@ Radius is a daemon-based code editing system designed for AI coding agents. It p
 ## Features
 
 - **LSP-powered semantic operations**: Variable reading and renaming with full semantic understanding
+- **Code visualization**: Generate Mermaid graphs for imports, references, and call hierarchies
 - **Undo/redo history**: Per-project change tracking with full file restoration
 - **Git conflict resolution**: Parse and resolve merge conflicts programmatically
 - **Import-aware file renaming**: Automatically update import statements across the project
+- **Session management**: Dog tag-based conversation tracking with automatic rewind detection
 - **VSCode extension support**: Install extensions from Open VSX registry for language support
 - **External change detection**: Automatically detect and handle external file modifications
 - **Memory-efficient buffering**: LRU cache with Piece Tree text buffer for large file handling
@@ -122,6 +124,13 @@ radius undo    # Undo last change
 radius redo    # Redo undone change
 ```
 
+#### Code visualization (Mermaid graphs)
+```bash
+radius graph imports <file> [--depth=N]      # Module dependency graph
+radius graph refs <file> <symbol>            # Variable reference graph
+radius graph calls <file> <function>         # Function call hierarchy
+```
+
 #### Extension management
 ```bash
 radius ext install <publisher.name>   # Install from Open VSX
@@ -200,10 +209,12 @@ src/
     history/     # Undo/redo tracking
     imports/     # Import statement scanning and rewriting
     conflict/    # Git conflict parsing
+    graph/       # Mermaid graph generation (imports, refs, calls)
+    session/     # Dog tag-based session management
   lsp/           # LSP client and transport
   extension-host/# VSCode extension loading
   ipc/           # Unix socket IPC layer
-  shared/        # Shared utilities
+  shared/        # Shared utilities and colors
 ```
 
 ### Build
