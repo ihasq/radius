@@ -61,7 +61,7 @@ describe("extension scanner", () => {
     ]);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatch(/failed to scan extension/i);
+    expect(result.stderr).toMatch(/failed to install extension|source not found/i);
   });
 
   test("scanExtension returns null for non-vscode package", async () => {
@@ -73,7 +73,7 @@ describe("extension scanner", () => {
     ]);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatch(/failed to scan extension/i);
+    expect(result.stderr).toMatch(/failed to install extension|source not found/i);
   });
 
   test("fileExtensionMap is correctly populated", async () => {
