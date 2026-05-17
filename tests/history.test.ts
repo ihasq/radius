@@ -3,7 +3,7 @@
  */
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
-import { radius } from "./helpers/radius";
+import { radius, extractTag } from "./helpers/radius";
 import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture, readFixtureFile } from "./helpers/fixtures";
 import { existsSync } from "node:fs";
@@ -31,7 +31,7 @@ describe("undo/redo", () => {
   test("undo reverts str-replace", async () => {
     const filePath = join(tmpDir, "src/main.ts");
 
-    await radius(
+    const r1 = await radius(
       [
         "str-replace",
         filePath,
@@ -46,7 +46,7 @@ describe("undo/redo", () => {
     let content = readFixtureFile(tmpDir, "src/main.ts");
     expect(content).toContain("displayName");
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
 
     content = readFixtureFile(tmpDir, "src/main.ts");
     expect(content).toContain("const userName");
@@ -56,7 +56,7 @@ describe("undo/redo", () => {
   test("redo reapplies undone operation", async () => {
     const filePath = join(tmpDir, "src/main.ts");
 
-    await radius(
+    const r1 = await radius(
       [
         "str-replace",
         filePath,
@@ -68,14 +68,13 @@ describe("undo/redo", () => {
       { cwd: tmpDir }
     );
 
-    await radius(["undo"], { cwd: tmpDir });
-    await radius(["redo"], { cwd: tmpDir });
+    const r2 = await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
+    await radius(["redo", "--tag", extractTag(r2.stdout)], { cwd: tmpDir });
 
     const content = readFixtureFile(tmpDir, "src/main.ts");
     expect(content).toContain("displayName");
 
-    // Cleanup
-    await radius(["undo"], { cwd: tmpDir });
+    // Cleanup not needed - session will be cleaned up by next test's setupFixture
   });
 
   test("undo with no history returns error", async () => {
@@ -89,14 +88,14 @@ describe("undo/redo", () => {
   test("create undo deletes the file", async () => {
     const newFile = join(tmpDir, "src/temp.ts");
 
-    await radius(
+    const r1 = await radius(
       ["create", newFile, "--content", "const x = 1;"],
       { cwd: tmpDir }
     );
 
     expect(existsSync(newFile)).toBe(true);
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
 
     expect(existsSync(newFile)).toBe(false);
   });
@@ -105,7 +104,7 @@ describe("undo/redo", () => {
     const oldPath = join(tmpDir, "src/utils.ts");
     const newPath = join(tmpDir, "src/helpers.ts");
 
-    await radius(
+    const r1 = await radius(
       ["rename-file", oldPath, newPath],
       { cwd: tmpDir }
     );
@@ -113,7 +112,7 @@ describe("undo/redo", () => {
     expect(existsSync(newPath)).toBe(true);
     expect(existsSync(oldPath)).toBe(false);
 
-    await radius(["undo"], { cwd: tmpDir });
+    await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
 
     expect(existsSync(oldPath)).toBe(true);
     expect(existsSync(newPath)).toBe(false);
@@ -123,16 +122,16 @@ describe("undo/redo", () => {
     const filePath = join(tmpDir, "src/main.ts");
 
     // 3つの操作を実行
-    await radius(
+    const r1 = await radius(
       ["str-replace", filePath, "--old", 'const userName: string = "default_user"', "--new", 'const name1: string = "default_user"'],
       { cwd: tmpDir }
     );
-    await radius(
-      ["str-replace", filePath, "--old", 'const name1: string = "default_user"', "--new", 'const name2: string = "default_user"'],
+    const r2 = await radius(
+      ["str-replace", filePath, "--old", 'const name1: string = "default_user"', "--new", 'const name2: string = "default_user"', "--tag", extractTag(r1.stdout)],
       { cwd: tmpDir }
     );
-    await radius(
-      ["str-replace", filePath, "--old", 'const name2: string = "default_user"', "--new", 'const name3: string = "default_user"'],
+    const r3 = await radius(
+      ["str-replace", filePath, "--old", 'const name2: string = "default_user"', "--new", 'const name3: string = "default_user"', "--tag", extractTag(r2.stdout)],
       { cwd: tmpDir }
     );
 
@@ -140,37 +139,31 @@ describe("undo/redo", () => {
     expect(content).toContain("name3");
 
     // 2回undo
-    await radius(["undo"], { cwd: tmpDir });
-    await radius(["undo"], { cwd: tmpDir });
+    const r4 = await radius(["undo", "--tag", extractTag(r3.stdout)], { cwd: tmpDir });
+    const r5 = await radius(["undo", "--tag", extractTag(r4.stdout)], { cwd: tmpDir });
 
     content = readFixtureFile(tmpDir, "src/main.ts");
     expect(content).toContain("name1");
 
     // 1回redo
-    await radius(["redo"], { cwd: tmpDir });
+    const r6 = await radius(["redo", "--tag", extractTag(r5.stdout)], { cwd: tmpDir });
 
     content = readFixtureFile(tmpDir, "src/main.ts");
     expect(content).toContain("name2");
-
-    // Cleanup
-    await radius(["undo"], { cwd: tmpDir });
-    await radius(["undo"], { cwd: tmpDir });
   }, 30_000);
 
   test("redo with no redo history returns error", async () => {
     const filePath = join(tmpDir, "src/main.ts");
 
-    await radius(
+    const r1 = await radius(
       ["str-replace", filePath, "--old", 'const userName: string = "default_user"', "--new", 'const displayName: string = "default_user"'],
       { cwd: tmpDir }
     );
 
     // redoする前に新しい操作をすると、redoスタックがクリアされる
-    const result = await radius(["redo"], { cwd: tmpDir });
+    const result = await radius(["redo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/nothing to redo|no history/i);
-
-    await radius(["undo"], { cwd: tmpDir });
   });
 });

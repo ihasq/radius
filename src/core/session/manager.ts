@@ -200,15 +200,21 @@ export class SessionManager {
   /**
    * ファイル変更を伴うコマンド完了後に呼び出す。
    * シーケンスを進め、新しいタグを生成し、Changeset IDと紐付ける。
+   * changesetId が null の場合、seqToChangeset への登録をスキップするが、
+   * シーケンスのインクリメントとタグ生成は必ず実行する。
    */
-  advance(changesetId: string): string {
+  advance(changesetId: string | null): string {
     // init() は validateAndRewind() で既に呼ばれているはず
     this.state.currentSeq++;
     const newTag = generateTag(this.projectHashPrefix);
 
     this.state.tagToSeq[newTag] = this.state.currentSeq;
     this.state.seqToTag[this.state.currentSeq] = newTag;
-    this.state.seqToChangeset[this.state.currentSeq] = changesetId;
+
+    // changesetId が存在する場合のみ登録
+    if (changesetId) {
+      this.state.seqToChangeset[this.state.currentSeq] = changesetId;
+    }
 
     this.save();
     return newTag;

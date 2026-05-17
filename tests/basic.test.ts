@@ -161,7 +161,7 @@ describe("str-replace", () => {
       'userName: string = "default_user"',
       "--new",
       'displayName: string = "default_user"',
-    ]);
+    ], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/>\s*\d+:/); // > marker with line number
@@ -180,7 +180,7 @@ describe("insert", () => {
       "1",
       "--text",
       "// New comment",
-    ]);
+    ], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("inserted");
@@ -200,7 +200,7 @@ describe("insert", () => {
       "0",
       "--text",
       "// Header comment",
-    ]);
+    ], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(0);
 
@@ -220,7 +220,7 @@ describe("insert", () => {
       "9999",
       "--text",
       "text",
-    ]);
+    ], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/invalid line/i);
@@ -235,7 +235,7 @@ describe("create", () => {
       newFile,
       "--content",
       "export const x = 1;",
-    ]);
+    ], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("created");
@@ -254,7 +254,7 @@ describe("create", () => {
       existingFile,
       "--content",
       "content",
-    ]);
+    ], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/already exists/i);
@@ -267,7 +267,7 @@ describe("create", () => {
       newFile,
       "--content",
       "const preview = true;",
-    ]);
+    ], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("const preview = true;");
@@ -286,7 +286,7 @@ describe("solve-conflict", () => {
   });
 
   test("displays conflict regions in read mode", async () => {
-    const result = await radius(["solve-conflict", conflictFile]);
+    const result = await radius(["solve-conflict", conflictFile], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("conflicts:");

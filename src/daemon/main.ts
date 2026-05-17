@@ -342,14 +342,9 @@ for (const handlerDef of handlers) {
         if (response.ok) {
           let newTag: string;
           if (isWriteCommand) {
-            // 書き込みコマンド: advance して新しいタグを生成
+            // 書き込みコマンド: 無条件に advance() を呼び出す
             const latestChangesetId = await historyTracker.getLatestChangesetId();
-            if (latestChangesetId) {
-              newTag = sessionManager.advance(latestChangesetId);
-            } else {
-              // changeset がない場合は現在のタグを返す
-              newTag = sessionManager.currentTag();
-            }
+            newTag = sessionManager.advance(latestChangesetId || null);
           } else {
             // 読み取り専用コマンド: 現在のタグを返す
             newTag = sessionManager.currentTag();
