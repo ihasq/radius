@@ -36,7 +36,44 @@ function cleanupAllSessions(): void {
     if (!existsSync(radiusDir)) return;
 
     for (const entry of readdirSync(radiusDir)) {
-      const sessionPath = join(radiusDir, entry, "session.json");
+      const projectDir = join(radiusDir, entry);
+
+      // sessions/*.json を削除
+      const sessionsDir = join(projectDir, "sessions");
+      if (existsSync(sessionsDir)) {
+        try {
+          for (const sessionFile of readdirSync(sessionsDir)) {
+            if (sessionFile.endsWith(".json")) {
+              unlinkSync(join(sessionsDir, sessionFile));
+            }
+          }
+        } catch {
+          // 削除失敗は無視
+        }
+      }
+
+      // ledger.json を削除
+      const ledgerPath = join(projectDir, "ledger.json");
+      if (existsSync(ledgerPath)) {
+        try {
+          unlinkSync(ledgerPath);
+        } catch {
+          // 削除失敗は無視
+        }
+      }
+
+      // tag-index.json を削除
+      const tagIndexPath = join(projectDir, "tag-index.json");
+      if (existsSync(tagIndexPath)) {
+        try {
+          unlinkSync(tagIndexPath);
+        } catch {
+          // 削除失敗は無視
+        }
+      }
+
+      // 旧session.json を削除（後方互換性）
+      const sessionPath = join(projectDir, "session.json");
       if (existsSync(sessionPath)) {
         try {
           unlinkSync(sessionPath);

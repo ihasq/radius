@@ -4,7 +4,7 @@ import { mkdirSync } from "node:fs";
 
 /** Radiusホームディレクトリのパスを返す。ディレクトリは作成しない。 */
 export function getRadiusHome(): string {
-  return resolve(homedir(), ".radius");
+  return process.env.RADIUS_HOME || resolve(homedir(), ".radius");
 }
 
 /** Radiusホームディレクトリを作成し、パスを返す。 */

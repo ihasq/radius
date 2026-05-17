@@ -1,6 +1,7 @@
 import { getSocketPath } from "../shared/paths";
 import { encode, FrameDecoder } from "./framing";
 import type { IpcRequest, IpcResponse } from "../shared/types";
+import { debug } from "../shared/debug";
 
 /** デフォルトのリクエストタイムアウト（ミリ秒）。 */
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -14,6 +15,7 @@ export async function sendRequest(
   timeoutMs: number = DEFAULT_TIMEOUT_MS
 ): Promise<IpcResponse | null> {
   const socketPath = getSocketPath();
+  debug("ipc", "sending request", { command: request.command });
 
   return new Promise<IpcResponse | null>((resolve) => {
     let settled = false;
@@ -28,6 +30,7 @@ export async function sendRequest(
 
     // --- タイムアウト（A3修正） ---
     timer = setTimeout(() => {
+      debug("ipc", "request timeout", { command: request.command });
       settle({ ok: false, error: "Request timed out" });
     }, timeoutMs);
 
@@ -40,6 +43,7 @@ export async function sendRequest(
           data(_socket, rawData) {
             const messages = decoder.feed(rawData.toString());
             if (messages.length > 0) {
+              debug("ipc", "response received", { command: request.command });
               settle(messages[0] as IpcResponse);
             }
           },
@@ -48,17 +52,21 @@ export async function sendRequest(
           },
           // --- A2修正: close時にPromiseを解決する ---
           close() {
+            debug("ipc", "connection closed", { command: request.command });
             settle(null);
           },
           connectError() {
+            debug("ipc", "connection error", { command: request.command });
             settle(null);
           },
           error(_socket, err) {
+            debug("ipc", "socket error", { command: request.command, error: err.message });
             settle({ ok: false, error: err.message });
           },
         },
       });
     } catch {
+      debug("ipc", "connect exception", { command: request.command });
       settle(null);
     }
   });

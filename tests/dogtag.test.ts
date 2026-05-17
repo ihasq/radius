@@ -6,16 +6,19 @@ import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } fr
 import { radius, extractTag } from "./helpers/radius";
 import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture, readFixtureFile } from "./helpers/fixtures";
+import { setupTestRadiusHome, cleanupTestRadiusHome } from "./helpers/test-isolation";
 import { join } from "node:path";
 
 let tmpDir: string;
 
 beforeAll(async () => {
+  setupTestRadiusHome("dogtag");
   await startDaemon();
 });
 
 afterAll(async () => {
   await stopDaemon();
+  cleanupTestRadiusHome();
 });
 
 beforeEach(async () => {
@@ -180,10 +183,10 @@ describe("dog tag", () => {
     await radius(["undo"], { cwd: tmpDir });
   }, 30_000);
 
-  test("write command without tag is rejected when session exists", async () => {
+  test("write command without tag creates new chain and detects conflicts", async () => {
     const filePath = join(tmpDir, "src/main.ts");
 
-    // 1. 初回操作（タグなし → 成功）
+    // 1. 初回操作（タグなし → 成功、Chain A 作成）
     const r1 = await radius(
       ["str-replace", filePath, "--old", 'const userName: string = "default_user"', "--new", 'const step1: string = "default_user"'],
       { cwd: tmpDir }
@@ -191,18 +194,16 @@ describe("dog tag", () => {
     expect(r1.exitCode).toBe(0);
     const tag1 = extractTag(r1.stdout);
 
-    // 2. タグなしで書き込み → 拒否
+    // 2. タグなしで書き込み → 新しいChain Bが作成されるが、Chain Aとのコンフリクトで--reasonが必要
     const r2 = await radius(
       ["str-replace", filePath, "--old", 'const step1: string = "default_user"', "--new", 'const step2: string = "default_user"'],
       { cwd: tmpDir }
     );
     expect(r2.exitCode).toBe(1);
-    expect(r2.stderr).toMatch(/--tag is required/i);
-    // エラーメッセージにタグ値が含まれないことを確認（"Last tag: xxxx" のような漏洩を防ぐ）
-    const errorMessage = r2.stderr.split('\n')[0]; // 最初の行だけをチェック
-    expect(errorMessage).not.toContain(tag1);
+    expect(r2.stderr).toMatch(/conflict detected/i);
+    expect(r2.stderr).toMatch(/--reason/i);
 
-    // 3. タグ付きで書き込み → 成功
+    // 3. タグ付きで書き込み → Chain A を継続して成功
     const r3 = await radius(
       ["str-replace", filePath, "--old", 'const step1: string = "default_user"', "--new", 'const step2: string = "default_user"', "--tag", tag1],
       { cwd: tmpDir }
@@ -214,10 +215,10 @@ describe("dog tag", () => {
     await radius(["undo"], { cwd: tmpDir });
   }, 30_000);
 
-  test("read-only command without tag shows warning but succeeds", async () => {
+  test("read-only command without tag creates new chain", async () => {
     const filePath = join(tmpDir, "src/main.ts");
 
-    // 1. 初回操作
+    // 1. 初回操作（Chain A 作成）
     const r1 = await radius(
       ["str-replace", filePath, "--old", 'const userName: string = "default_user"', "--new", 'const step1: string = "default_user"'],
       { cwd: tmpDir }
@@ -225,13 +226,13 @@ describe("dog tag", () => {
     expect(r1.exitCode).toBe(0);
     const tag1 = extractTag(r1.stdout);
 
-    // 2. タグなしで読み取り → 警告付き成功
+    // 2. タグなしで読み取り → 新しいChain Bが作成され、成功
     const r2 = await radius(["view", filePath], { cwd: tmpDir });
     expect(r2.exitCode).toBe(0);
-    expect(r2.stdout).toMatch(/warning.*--tag not provided/i);
-    // 警告メッセージに前回のタグ値が含まれないことを確認（"Last tag: xxxx" のような漏洩を防ぐ）
-    const warningLine = r2.stdout.split('\n').find(line => line.includes('warning'));
-    expect(warningLine).not.toContain(tag1);
+    expect(r2.stdout).toContain("step1"); // 変更後の内容が見える
+    const tag2 = extractTag(r2.stdout);
+    // 異なるチェーンなので、異なるタグプレフィックスを持つ可能性が高い
+    expect(tag2).toBeTruthy();
 
     // cleanup
     await radius(["undo", "--tag", tag1], { cwd: tmpDir });

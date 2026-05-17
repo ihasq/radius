@@ -27,6 +27,7 @@ import { readStdin, isStdinAvailable } from "../shared/stdin";
 import { muted } from "../shared/colors";
 import type { IpcResponse, IpcRequest } from "../shared/types";
 import pkg from "../../package.json";
+import { debug, debugTime } from "../shared/debug";
 
 // ==================== CLI MODE ====================
 // When invoked with --exec, run as CLI instead of daemon
@@ -354,33 +355,11 @@ for (const handlerDef of handlers) {
           deprecationWarnings.push("warning: --agent is deprecated. Agent identity is determined by --tag.");
         }
 
-        // 0. プロジェクトレベルのタグ検証
-        const isWriteCommand = handlerDef.isWriteCommand ?? false;
-        if (tag === undefined) {
-          // 台帳に最近の記録があるかチェック
-          const ledger = getLedger(projectRoot);
-          const hasRecentActivity = await ledger.hasRecentActivity(30);
-          if (hasRecentActivity) {
-            if (isWriteCommand) {
-              // 書き込みコマンドの場合は拒否
-              return {
-                ok: false,
-                error: "error: --tag is required. Pass the tag from your previous radius output.",
-                warnings: deprecationWarnings.length > 0 ? deprecationWarnings : undefined,
-              };
-            } else {
-              // 読み取り専用コマンドの場合は警告を追加
-              deprecationWarnings.push("warning: --tag not provided.");
-            }
-          }
-        }
-
+        // タグからチェーンIDを解決（タグなし = 新しいチェーンを開始）
         const chainId = await SessionManager.resolveChainId(projectRoot, tag);
+        const isWriteCommand = handlerDef.isWriteCommand ?? false;
 
-        // デバッグログ
-        if (process.env.RADIUS_DEBUG) {
-          console.log(`[daemon] command=${request.command}, tag=${tag}, chainId=${chainId}`);
-        }
+        debug("cmd", `command=${request.command}, tag=${tag}, chainId=${chainId}`);
 
         // チェーン別のセッション・履歴マネージャを取得
         const sessionManager = getSessionManager(projectRoot, chainId);
@@ -481,7 +460,9 @@ for (const handlerDef of handlers) {
         }
 
         // 4. 実ハンドラを呼び出し
+        const endTimer = debugTime("cmd", request.command);
         const response = await handlerDef.handler(request, context);
+        endTimer();
 
         // 5. 書き込みコマンドの事後処理（台帳記録）
         if (response.ok && isWriteCommand && response.changes) {
@@ -565,7 +546,10 @@ for (const handlerDef of handlers) {
       }
 
       // セッション検証不要なコマンド
-      return await handlerDef.handler(request, context);
+      const endTimer = debugTime("cmd", request.command);
+      const result = await handlerDef.handler(request, context);
+      endTimer();
+      return result;
     });
   }
 }

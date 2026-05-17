@@ -2,6 +2,7 @@ import { unlinkSync } from "node:fs";
 import { getSocketPath } from "../shared/paths";
 import { encode, FrameDecoder } from "./framing";
 import type { IpcRequest, IpcResponse } from "../shared/types";
+import { debug, debugError } from "../shared/debug";
 
 type CommandHandler = (
   request: IpcRequest
@@ -46,9 +47,11 @@ export class IpcServer {
 
           for (const msg of messages) {
             const request = msg as IpcRequest;
+            debug("ipc", "request received", { command: request.command });
             const handler = this.handlers.get(request.command);
 
             if (!handler) {
+              debug("ipc", "unknown command", { command: request.command });
               socket.write(
                 encode({ ok: false, error: `Unknown command: ${request.command}` })
               );
@@ -58,8 +61,10 @@ export class IpcServer {
 
             try {
               const response = await handler(request);
+              debug("ipc", "response sent", { command: request.command, ok: response.ok });
               socket.write(encode(response));
             } catch (err) {
+              debugError("ipc", `handler failed: ${request.command}`, err);
               socket.write(
                 encode({
                   ok: false,
@@ -72,7 +77,7 @@ export class IpcServer {
         },
         close() {},
         error(_socket, err) {
-          console.error("[radiusd] socket error:", err.message);
+          debugError("ipc", "socket error", err);
         },
       },
     });

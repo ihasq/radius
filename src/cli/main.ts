@@ -78,6 +78,11 @@ async function ensureDaemon(): Promise<boolean> {
   const child = spawn(daemonCmd, daemonArgs, {
     stdio: "ignore",
     detached: true,
+    env: {
+      ...process.env,
+      RADIUS_HOME: process.env.RADIUS_HOME || "",
+      RADIUS_DEBUG: process.env.RADIUS_DEBUG || "",
+    },
   });
   child.unref();
 

@@ -2,11 +2,28 @@
  * ChangeLedger Unit Test
  */
 
-import { test, expect, describe } from "bun:test";
+import { test, expect, describe, beforeEach } from "bun:test";
 import { ChangeLedger } from "../src/core/agent/ledger";
-import { rmSync } from "node:fs";
+import { rmSync, existsSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+
+// テスト前に全ledgerファイルをクリーンアップ
+beforeEach(() => {
+  try {
+    const radiusDir = join(homedir(), ".radius");
+    if (!existsSync(radiusDir)) return;
+
+    for (const entry of readdirSync(radiusDir)) {
+      const ledgerPath = join(radiusDir, entry, "ledger.json");
+      if (existsSync(ledgerPath)) {
+        try {
+          unlinkSync(ledgerPath);
+        } catch {}
+      }
+    }
+  } catch {}
+});
 
 describe("ChangeLedger", () => {
   test("records and retrieves entries", async () => {
@@ -14,7 +31,7 @@ describe("ChangeLedger", () => {
 
     // Record entry
     const entry = await ledger.record({
-      agentId: "agent-a",
+      chainId: "chain-a",
       filePath: "/tmp/test.ts",
       timestamp: new Date().toISOString(),
       command: "replace",
@@ -25,17 +42,17 @@ describe("ChangeLedger", () => {
     });
 
     expect(entry.id).toBeTruthy();
-    expect(entry.agentId).toBe("agent-a");
+    expect(entry.chainId).toBe("chain-a");
 
     // Retrieve entry
     const retrieved = await ledger.getEntry(entry.id);
     expect(retrieved).toBeTruthy();
-    expect(retrieved!.agentId).toBe("agent-a");
+    expect(retrieved!.chainId).toBe("chain-a");
 
     // Get recent changes
     const recent = await ledger.getRecentChanges("/tmp/test.ts", 30);
     expect(recent.length).toBe(1);
-    expect(recent[0].agentId).toBe("agent-a");
+    expect(recent[0].chainId).toBe("chain-a");
 
     console.log("✓ Ledger basic operations work");
   });
@@ -43,9 +60,9 @@ describe("ChangeLedger", () => {
   test("finds overlapping changes", async () => {
     const ledger = new ChangeLedger("/tmp/test-ledger-project-2");
 
-    // Agent A makes a change
+    // Chain A makes a change
     await ledger.record({
-      agentId: "agent-a",
+      chainId: "chain-a",
       filePath: "/tmp/test.ts",
       timestamp: new Date().toISOString(),
       command: "replace",
@@ -55,17 +72,17 @@ describe("ChangeLedger", () => {
       changesetId: "cs-1",
     });
 
-    // Agent B makes an overlapping change
+    // Chain B makes an overlapping change
     const overlaps = await ledger.findOverlaps(
       "/tmp/test.ts",
       8,
       12,
-      "agent-b",
+      "chain-b",
       30
     );
 
     expect(overlaps.length).toBe(1);
-    expect(overlaps[0].agentId).toBe("agent-a");
+    expect(overlaps[0].chainId).toBe("chain-a");
 
     console.log("✓ Overlap detection works");
   });

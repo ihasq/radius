@@ -10,9 +10,10 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { projectHash } from "../../shared/paths";
+import { projectHash, getRadiusHome } from "../../shared/paths";
 import type { HistoryTracker } from "../history/tracker";
 import type { LspManager } from "../../lsp/manager";
+import { debug } from "../../shared/debug";
 
 /**
  * タグインデックス: tag → chainId のマッピング
@@ -57,8 +58,7 @@ function getTagIndexPath(projectRoot: string, hash: string): string {
   if (!hash) {
     throw new Error("[SessionManager] getTagIndexPath called with empty hash");
   }
-  const homeDir = require("node:os").homedir();
-  return join(homeDir, ".radius", hash, "tag-index.json");
+  return join(getRadiusHome(), hash, "tag-index.json");
 }
 
 /**
@@ -128,7 +128,9 @@ export class SessionManager {
   static async resolveChainId(projectRoot: string, tag: string | null | undefined): Promise<string> {
     // tag が null または undefined → 新しいチェーンを開始
     if (tag === null || tag === undefined) {
-      return generateChainId();
+      const newChainId = generateChainId();
+      debug("session", "new chain created", { chainId: newChainId });
+      return newChainId;
     }
 
     // tag からチェーンIDを逆引き
@@ -136,11 +138,14 @@ export class SessionManager {
     const index = loadTagIndex(projectRoot, hash);
 
     if (tag in index) {
+      debug("session", "chain resolved from tag", { tag, chainId: index[tag] });
       return index[tag];
     }
 
     // 未知のタグ → 新しいチェーンとして扱う
-    return generateChainId();
+    const newChainId = generateChainId();
+    debug("session", "unknown tag, new chain created", { tag, chainId: newChainId });
+    return newChainId;
   }
 
   /**
@@ -169,8 +174,7 @@ export class SessionManager {
     this.projectHashPrefix = this.projectHash.slice(0, 4);
 
     // セッションファイルのパス: ~/.radius/<project-hash>/sessions/<chainId>.json
-    const homeDir = require("node:os").homedir();
-    const radiusDir = join(homeDir, ".radius", this.projectHash);
+    const radiusDir = join(getRadiusHome(), this.projectHash);
     const sessionsDir = join(radiusDir, "sessions");
     this.sessionPath = join(sessionsDir, `${this.chainId}.json`);
 
@@ -199,16 +203,19 @@ export class SessionManager {
     if (tag === undefined) {
       // セッションが存在しない（初回呼び出し）
       if (this.state.currentSeq === 0) {
+        debug("session", "tag undefined, first call in chain", { chainId: this.chainId });
         return { warnings, currentSeq: this.state.currentSeq, rejected: false };
       }
 
       // セッションが存在する
       if (isWriteCommand) {
         // 書き込みコマンド → 拒否
+        debug("session", "tag undefined, write command rejected", { chainId: this.chainId, currentSeq: this.state.currentSeq });
         warnings.push("error: --tag is required. Pass the tag from your previous radius output.");
         return { warnings, currentSeq: this.state.currentSeq, rejected: true };
       } else {
         // 読み取り専用コマンド → 警告付き続行
+        debug("session", "tag undefined, read command allowed", { chainId: this.chainId });
         warnings.push("warning: --tag not provided.");
         return { warnings, currentSeq: this.state.currentSeq, rejected: false };
       }
@@ -216,6 +223,7 @@ export class SessionManager {
 
     // 2. tag が null: 明示的なセッション初期化リクエスト
     if (tag === null) {
+      debug("session", "tag null, session reset", { chainId: this.chainId });
       this.state.currentSeq = 0;
       this.state.tagToSeq = {};
       this.state.seqToTag = {};
@@ -226,6 +234,7 @@ export class SessionManager {
 
     // 3. tag が tagToSeq に存在しない
     if (!(tag in this.state.tagToSeq)) {
+      debug("session", "unknown tag, session reset", { chainId: this.chainId, tag });
       warnings.push(`warning: unknown tag '${tag}'. Session may be corrupted.`);
       // セッション初期化
       this.state.currentSeq = 0;
@@ -237,6 +246,7 @@ export class SessionManager {
     }
 
     const receivedSeq = this.state.tagToSeq[tag];
+    debug("session", "tag validated", { chainId: this.chainId, tag, receivedSeq, currentSeq: this.state.currentSeq });
 
     // 4. receivedSeq == currentSeq: 正常
     if (receivedSeq === this.state.currentSeq) {

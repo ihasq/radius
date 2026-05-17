@@ -6,16 +6,19 @@ import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } fr
 import { radius } from "./helpers/radius";
 import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture } from "./helpers/fixtures";
+import { setupTestRadiusHome, cleanupTestRadiusHome } from "./helpers/test-isolation";
 import { join } from "node:path";
 
 let tmpDir: string;
 
 beforeAll(async () => {
+  setupTestRadiusHome("graph");
   await startDaemon();
 });
 
 afterAll(async () => {
   await stopDaemon();
+  cleanupTestRadiusHome();
 });
 
 beforeEach(async () => {

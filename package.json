@@ -6,7 +6,8 @@
     "cli": "bun run src/cli/main.ts",
     "daemon": "bun run src/daemon/main.ts",
     "build": "./scripts/build.sh",
-    "test": "bun test --timeout 60000"
+    "test": "bun test --timeout 60000",
+    "test:dev": "bun test --bail --timeout 60000"
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.8",

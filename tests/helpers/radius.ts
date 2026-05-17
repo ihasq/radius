@@ -30,8 +30,13 @@ export async function radius(
     : process.cwd();
   const cwd = options?.cwd ?? projectRoot;
 
-  // 環境変数: デフォルトでNO_COLOR=1、ただしFORCE_COLORが指定されている場合は削除
-  const env = { ...process.env, NO_COLOR: "1", ...options?.env };
+  // 環境変数: デフォルトでNO_COLOR=1、RADIUS_HOMEを引き継ぐ
+  const env = {
+    ...process.env,
+    NO_COLOR: "1",
+    RADIUS_HOME: process.env.RADIUS_HOME || "",
+    ...options?.env,
+  };
   if (options?.env?.FORCE_COLOR) {
     delete env.NO_COLOR;
   }

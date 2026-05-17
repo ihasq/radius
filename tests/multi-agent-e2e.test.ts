@@ -13,16 +13,19 @@ import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } fr
 import { radius, extractTag } from "./helpers/radius";
 import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture, readFixtureFile } from "./helpers/fixtures";
+import { setupTestRadiusHome, cleanupTestRadiusHome } from "./helpers/test-isolation";
 import { join } from "node:path";
 
 let tmpDir: string;
 
 beforeAll(async () => {
+  setupTestRadiusHome("multi-agent-e2e");
   await startDaemon();
 });
 
 afterAll(async () => {
   await stopDaemon();
+  cleanupTestRadiusHome();
 });
 
 beforeEach(async () => {
@@ -37,8 +40,8 @@ describe("Phase 16 エンドツーエンド検証", () => {
   test("5-step conflict resolution scenario", async () => {
     const filePath = join(tmpDir, "src/main.ts");
 
-    // Step 1: Agent A が編集
-    console.log("\n=== Step 1: Agent A edits file ===");
+    // Step 1: Chain A が編集（tagなし初回）
+    console.log("\n=== Step 1: Chain A edits file ===");
     const r1 = await radius([
       "replace",
       filePath,
@@ -46,23 +49,21 @@ describe("Phase 16 エンドツーエンド検証", () => {
       "userName",
       "--replacement",
       "userId",
-      "--agent",
-      "agent-a",
     ], { cwd: tmpDir });
 
     console.log("stdout:", r1.stdout);
     console.log("stderr:", r1.stderr);
     expect(r1.exitCode).toBe(0);
     expect(r1.stdout).toContain("replaced");
-    const tag1 = extractTag(r1.stdout);
+    const tagA1 = extractTag(r1.stdout);
 
     // 変更を確認
     const content1 = readFixtureFile(tmpDir, "src/main.ts");
     expect(content1).toContain("userId");
     expect(content1).not.toContain("userName:");
 
-    // Step 2 & 3: Agent B が重複箇所を編集（事後検知のため成功するが、conflictが記録される）
-    console.log("\n=== Step 2: Agent B edits (conflict will be recorded post-write) ===");
+    // Step 2 & 3: Chain B が重複箇所を編集（tagなし初回=別chainId）
+    console.log("\n=== Step 2: Chain B edits (conflict will be recorded post-write) ===");
     const r2 = await radius([
       "replace",
       filePath,
@@ -70,12 +71,8 @@ describe("Phase 16 エンドツーエンド検証", () => {
       "userId",
       "--replacement",
       "accountId",
-      "--agent",
-      "agent-b",
       "--reason",
       "improving naming consistency",
-      "--tag",
-      tag1,
     ], { cwd: tmpDir });
 
     console.log("stdout:", r2.stdout);
@@ -88,38 +85,31 @@ describe("Phase 16 エンドツーエンド検証", () => {
     expect(content2).toContain("accountId");
     expect(content2).not.toContain("userId:");
 
-    const tag2 = extractTag(r2.stdout);
+    const tagB1 = extractTag(r2.stdout);
 
-    // Step 3 is now combined with Step 2
-    const r3 = r2;
-    const tag3 = tag2;
-
-    // Step 4: Agent A が次のコマンドで通知を受信
-    console.log("\n=== Step 4: Agent A receives notification ===");
+    // Step 4: Chain A が次のコマンドで通知を受信（自分のtagチェーンを使用）
+    console.log("\n=== Step 4: Chain A receives notification ===");
     const r4 = await radius([
       "view",
       filePath,
-      "--agent",
-      "agent-a",
       "--tag",
-      tag2,
+      tagA1,
     ], { cwd: tmpDir });
 
     console.log("stdout:", r4.stdout);
     console.log("stderr:", r4.stderr);
     expect(r4.exitCode).toBe(0);
     expect(r4.stdout).toContain("pending notification");
-    expect(r4.stdout).toContain("agent-b");
     expect(r4.stdout).toContain("overwrite");
 
-    // Step 5: Agent A が通知を確認して accept
-    console.log("\n=== Step 5: Agent A lists and accepts conflict ===");
+    // Step 5: Chain A が通知を確認して accept
+    console.log("\n=== Step 5: Chain A lists and accepts conflict ===");
 
-    // まず通知リストを取得してconflict IDを抽出
+    // まず通知リストを取得してconflict IDを抽出（Chain Aのtagで）
     const r5a = await radius([
       "list-notifications",
-      "--agent",
-      "agent-a",
+      "--tag",
+      tagA1,
     ], { cwd: tmpDir });
 
     console.log("notifications stdout:", r5a.stdout);
@@ -133,13 +123,13 @@ describe("Phase 16 エンドツーエンド検証", () => {
 
     console.log("Extracted conflict ID:", conflictId);
 
-    // accept を実行
+    // accept を実行（Chain Aのtagで）
     const r5b = await radius([
       "accept-change",
       "--conflict",
       conflictId,
-      "--agent",
-      "agent-a",
+      "--tag",
+      tagA1,
     ], { cwd: tmpDir });
 
     console.log("accept stdout:", r5b.stdout);
@@ -148,26 +138,27 @@ describe("Phase 16 エンドツーエンド検証", () => {
     expect(r5b.stdout).toContain("accepted");
     expect(r5b.stdout).toContain("resolved");
 
-    // 通知がクリアされたことを確認
+    // 通知がクリアされたことを確認（Chain Aのtagで）
+    const tagA2 = extractTag(r5b.stdout);
     const r6 = await radius([
       "list-notifications",
-      "--agent",
-      "agent-a",
+      "--tag",
+      tagA2,
     ], { cwd: tmpDir });
 
     console.log("final notifications:", r6.stdout);
     expect(r6.exitCode).toBe(0);
     expect(r6.stdout).toContain("no pending notifications");
 
-    // クリーンアップ
-    await radius(["undo", "--tag", tag2], { cwd: tmpDir });
-    await radius(["undo", "--tag", tag1], { cwd: tmpDir });
+    // クリーンアップ（各chainの最新tagでundo）
+    await radius(["undo", "--tag", tagB1], { cwd: tmpDir });
+    await radius(["undo", "--tag", tagA2], { cwd: tmpDir });
   });
 
   test("challenge flow", async () => {
     const filePath = join(tmpDir, "src/main.ts");
 
-    // Agent A が編集
+    // Chain A が編集（tagなし初回）
     const r1 = await radius([
       "replace",
       filePath,
@@ -175,14 +166,12 @@ describe("Phase 16 エンドツーエンド検証", () => {
       "userName",
       "--replacement",
       "userId",
-      "--agent",
-      "agent-a",
     ], { cwd: tmpDir });
 
     expect(r1.exitCode).toBe(0);
-    const tag1 = extractTag(r1.stdout);
+    const tagA1 = extractTag(r1.stdout);
 
-    // Agent B が --reason 付きで上書き
+    // Chain B が --reason 付きで上書き（tagなし初回=別chainId）
     const r2 = await radius([
       "replace",
       filePath,
@@ -190,22 +179,18 @@ describe("Phase 16 エンドツーエンド検証", () => {
       "userId",
       "--replacement",
       "accountId",
-      "--agent",
-      "agent-b",
       "--reason",
       "better naming",
-      "--tag",
-      tag1,
     ], { cwd: tmpDir });
 
     expect(r2.exitCode).toBe(0);
-    const tag2 = extractTag(r2.stdout);
+    const tagB1 = extractTag(r2.stdout);
 
-    // Agent A が通知を受け取り、challenge を送る
+    // Chain A が通知を受け取り、challenge を送る
     const r3 = await radius([
       "list-notifications",
-      "--agent",
-      "agent-a",
+      "--tag",
+      tagA1,
     ], { cwd: tmpDir });
 
     expect(r3.exitCode).toBe(0);
@@ -213,36 +198,34 @@ describe("Phase 16 エンドツーエンド検証", () => {
     expect(conflictIdMatch).toBeTruthy();
     const conflictId = conflictIdMatch![1];
 
-    // Challenge を送信
+    // Challenge を送信（Chain Aのtagで）
     const r4 = await radius([
       "challenge-change",
       "--conflict",
       conflictId,
-      "--agent",
-      "agent-a",
       "--reason",
       "this breaks existing tests",
+      "--tag",
+      tagA1,
     ], { cwd: tmpDir });
 
     console.log("challenge stdout:", r4.stdout);
     expect(r4.exitCode).toBe(0);
     expect(r4.stdout).toContain("challenge sent");
-    expect(r4.stdout).toContain("agent-b");
 
-    // Agent B が challenge 通知を受け取る
+    // Chain B が challenge 通知を受け取る
     const r5 = await radius([
       "list-notifications",
-      "--agent",
-      "agent-b",
+      "--tag",
+      tagB1,
     ], { cwd: tmpDir });
 
-    console.log("agent-b notifications:", r5.stdout);
+    console.log("chain-b notifications:", r5.stdout);
     expect(r5.exitCode).toBe(0);
     expect(r5.stdout).toContain("challenge");
-    expect(r5.stdout).toContain("agent-a");
 
     // クリーンアップ
-    await radius(["undo", "--tag", tag2], { cwd: tmpDir });
-    await radius(["undo", "--tag", tag1], { cwd: tmpDir });
+    await radius(["undo", "--tag", tagB1], { cwd: tmpDir });
+    await radius(["undo", "--tag", tagA1], { cwd: tmpDir });
   });
 });

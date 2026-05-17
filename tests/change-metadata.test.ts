@@ -4,19 +4,22 @@
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { startDaemon, stopDaemon } from "./helpers/daemon";
+import { setupTestRadiusHome, cleanupTestRadiusHome } from "./helpers/test-isolation";
 import { sendRequest } from "../src/ipc/client";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readdirSync, existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 
 let tmpDir: string;
 
 beforeAll(async () => {
+  setupTestRadiusHome("change-metadata");
   await startDaemon();
 });
 
 afterAll(async () => {
   await stopDaemon();
+  cleanupTestRadiusHome();
 });
 
 beforeEach(() => {
