@@ -36,7 +36,7 @@ export async function radius(
     delete env.NO_COLOR;
   }
 
-  const proc = spawn(["bun", "run", `${projectRoot}/src/cli/main.ts`, ...args], {
+  const proc = spawn(["bun", "run", `${projectRoot}/src/daemon/main.ts`, "--exec", ...args], {
     cwd,
     env,
     stdin: options?.stdin ? "pipe" : "inherit",

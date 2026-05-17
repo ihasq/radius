@@ -73,20 +73,36 @@ jobs:
       - name: Type check
         run: bunx tsc --noEmit
 
-      - name: Compile CLI
-        run: bun build --compile --target=${{ matrix.target }} src/cli/main.ts --outfile dist/radius-${{ matrix.suffix }}
-
-      - name: Compile Daemon
+      - name: Compile radiusd (daemon + CLI via --exec)
         run: bun build --compile --target=${{ matrix.target }} src/daemon/main.ts --outfile dist/radiusd-${{ matrix.suffix }}
+
+      - name: Create CLI wrapper
+        run: |
+          cd dist
+          if [[ "${{ matrix.suffix }}" == "win-x64" ]]; then
+            # Windows: radius.cmd
+            cat > radius.cmd << 'EOF'
+          @echo off
+          "%~dp0radiusd-${{ matrix.suffix }}.exe" --exec %*
+          EOF
+          else
+            # Unix: radius shell script
+            cat > radius << 'EOF'
+          #!/bin/sh
+          DIR="$(cd "$(dirname "$0")" && pwd)"
+          exec "$DIR/radiusd-${{ matrix.suffix }}" --exec "$@"
+          EOF
+            chmod +x radius
+          fi
 
       - name: Create archive
         run: |
           cd dist
           if [[ "${{ matrix.suffix }}" == "win-x64" ]]; then
-            zip radius-${{ matrix.suffix }}.zip radius-${{ matrix.suffix }}.exe radiusd-${{ matrix.suffix }}.exe
+            zip radius-${{ matrix.suffix }}.zip radiusd-${{ matrix.suffix }}.exe radius.cmd
           else
-            chmod +x radius-${{ matrix.suffix }} radiusd-${{ matrix.suffix }}
-            tar czf radius-${{ matrix.suffix }}.tar.gz radius-${{ matrix.suffix }} radiusd-${{ matrix.suffix }}
+            chmod +x radiusd-${{ matrix.suffix }}
+            tar czf radius-${{ matrix.suffix }}.tar.gz radiusd-${{ matrix.suffix }} radius
           fi
 
       - uses: actions/upload-artifact@v4

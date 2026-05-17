@@ -60,8 +60,14 @@ Expand-Archive -Path $ZipPath -DestinationPath $TmpDir -Force
 # Install
 Write-Info "Installing to $InstallDir..."
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-Copy-Item (Join-Path $TmpDir "radius-$Platform.exe")  (Join-Path $InstallDir "radius.exe")  -Force
 Copy-Item (Join-Path $TmpDir "radiusd-$Platform.exe") (Join-Path $InstallDir "radiusd.exe") -Force
+
+# Create radius.cmd wrapper
+$RadiusCmdPath = Join-Path $InstallDir "radius.cmd"
+@"
+@echo off
+"%~dp0radiusd.exe" --exec %*
+"@ | Out-File -FilePath $RadiusCmdPath -Encoding ASCII -NoNewline
 
 # Cleanup
 Remove-Item -Recurse -Force $TmpDir

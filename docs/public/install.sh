@@ -60,9 +60,16 @@ download_and_install() {
 
   info "Installing to ${INSTALL_DIR}..."
   mkdir -p "$INSTALL_DIR"
-  cp "${TMPDIR}/radius-${PLATFORM}"  "${INSTALL_DIR}/radius"
   cp "${TMPDIR}/radiusd-${PLATFORM}" "${INSTALL_DIR}/radiusd"
-  chmod +x "${INSTALL_DIR}/radius" "${INSTALL_DIR}/radiusd"
+  chmod +x "${INSTALL_DIR}/radiusd"
+
+  # Create radius shell script wrapper
+  cat > "${INSTALL_DIR}/radius" << 'EOF'
+#!/bin/sh
+DIR="$(cd "$(dirname "$0")" && pwd)"
+exec "$DIR/radiusd" --exec "$@"
+EOF
+  chmod +x "${INSTALL_DIR}/radius"
 }
 
 setup_path() {
