@@ -159,6 +159,13 @@ describe.skipIf(!TSL_AVAILABLE)("LSP diagnostics", () => {
   test("modify-var reports diagnostics after rename", async () => {
     const filePath = join(tmpDir, "src/main.ts");
 
+    // LSP が両ファイルとその参照関係を認識するように事前に開く
+    await radius(["outline", filePath], { cwd: tmpDir });
+    await radius(["outline", join(tmpDir, "src/utils.ts")], { cwd: tmpDir });
+
+    // LSP のインデックス完了を待つ
+    await Bun.sleep(2000);
+
     // userNameを別の名前に変更（utils.tsのimportが影響を受ける可能性）
     const result = await radius(
       [

@@ -161,6 +161,13 @@ describe.skipIf(!TSL_AVAILABLE)("modify-var with LSP", () => {
   test("renames variable across multiple files", async () => {
     const filePath = join(tmpDir, "src/main.ts");
 
+    // LSP が両ファイルとその参照関係を認識するように事前に開く
+    await radius(["outline", filePath], { cwd: tmpDir });
+    await radius(["outline", join(tmpDir, "src/utils.ts")], { cwd: tmpDir });
+
+    // LSP のインデックス完了を待つ
+    await Bun.sleep(2000);
+
     const result = await radius([
       "modify-var",
       filePath,
