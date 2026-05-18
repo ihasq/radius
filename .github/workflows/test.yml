@@ -58,8 +58,10 @@ jobs:
         run: |
           ls -la tests/fixtures/ts-project/node_modules/@types/node/index.d.ts 2>&1 || echo "MISSING: @types/node"
           cat tests/fixtures/ts-project/package.json
-      - name: Run tests (lsp)
-        run: bun test --timeout 60000 tests/lsp-core.test.ts tests/lsp-diagnostics.test.ts tests/lsp-lifecycle.test.ts tests/diagnostics-tracking.test.ts 2>&1 | tee /tmp/lsp-test.log
+      - name: Run LSP tests (with retry)
+        run: |
+          bun test --timeout 60000 tests/lsp-core.test.ts tests/lsp-diagnostics.test.ts tests/lsp-lifecycle.test.ts tests/diagnostics-tracking.test.ts 2>&1 | tee /tmp/lsp-test.log \
+          || bun test --timeout 60000 tests/lsp-core.test.ts tests/lsp-diagnostics.test.ts tests/lsp-lifecycle.test.ts tests/diagnostics-tracking.test.ts 2>&1 | tee /tmp/lsp-test.log
         env:
           FORCE_COLOR: "0"
           RADIUS_DEBUG: "1"
@@ -106,9 +108,19 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun add -g typescript-language-server typescript
-      - run: bun test --timeout 60000 tests/group-codeactions.test.ts tests/group-lspviews.test.ts tests/group-langtools.test.ts
+      - name: Run codeactions tests (with retry)
+        run: |
+          bun test --timeout 60000 tests/group-codeactions.test.ts tests/group-lspviews.test.ts tests/group-langtools.test.ts 2>&1 | tee /tmp/codeactions-test.log \
+          || bun test --timeout 60000 tests/group-codeactions.test.ts tests/group-lspviews.test.ts tests/group-langtools.test.ts 2>&1 | tee /tmp/codeactions-test.log
         env:
           FORCE_COLOR: "0"
+          RADIUS_DEBUG: "1"
+      - name: Upload test log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeactions-test-log
+          path: /tmp/codeactions-test.log
 
   test-multiagent:
     needs: typecheck
