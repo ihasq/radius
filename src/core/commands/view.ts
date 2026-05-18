@@ -90,7 +90,7 @@ export async function handleView(
         output.push(`${lineNum}: ${bufferManager.getLineContent(absPath, i)}`);
       }
 
-      return { ok: true, data: output.join("\n") };
+      return { ok: true, data: output.join("\n"), primaryFile: absPath };
     }
 
     // 通常出力（200行以下 or 範囲指定あり）
@@ -100,7 +100,7 @@ export async function handleView(
       output.push(`${lineNum}: ${bufferManager.getLineContent(absPath, i)}`);
     }
 
-    return { ok: true, data: output.join("\n") };
+    return { ok: true, data: output.join("\n"), primaryFile: absPath };
   } catch (err) {
     return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
   }

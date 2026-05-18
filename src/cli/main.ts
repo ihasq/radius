@@ -16,7 +16,7 @@ import type { IpcRequest } from "../shared/types";
 import { readStdin, isStdinAvailable } from "../shared/stdin";
 import pkg from "../../package.json";
 import { muted, stripAnsi, shouldStripColors } from "../shared/colors";
-import { getTip } from "./tips";
+import { getTip, getSuccessTip } from "./tips";
 
 /**
  * PIDファイルに記録されたプロセスが生存しているか確認する。
@@ -212,6 +212,18 @@ async function main(): Promise<void> {
       console.log(output);
     } else {
       console.log(JSON.stringify(response.data, null, 2));
+    }
+
+    // A: 成功時tips
+    if (response.ok) {
+      const successTip = getSuccessTip(
+        commandName,
+        args,
+        typeof response.data === "string" ? response.data : ""
+      );
+      if (successTip) {
+        console.error(successTip);
+      }
     }
   }
 

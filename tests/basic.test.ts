@@ -54,8 +54,9 @@ describe("view", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("userName");
-    // Should not contain later lines
-    expect(result.stdout).not.toContain("initialize");
+    // Should not contain later line content (function body)
+    expect(result.stdout).not.toContain("function initialize()");
+    // Context section may include "initialize" in exports list (expected)
   });
 
   test("truncates large files (>200 lines)", async () => {

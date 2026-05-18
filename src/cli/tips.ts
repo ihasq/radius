@@ -46,3 +46,32 @@ export function getTip(command: string, errorMessage: string): string | null {
   // 汎用tips（他のtipsが該当しなかった場合）
   return `tip: run radius ${command} --help for usage details`;
 }
+
+/**
+ * コマンド成功時に表示すべきtipを返す。
+ * 不要な場合は null を返す。
+ */
+export function getSuccessTip(
+  command: string,
+  args: string[],
+  stdout: string
+): string | null {
+  switch (command) {
+    case "create":
+      if (!args.includes("--content") && !args.includes("--stdin")) {
+        return 'tip: pass --content "code" to create a file with content in one step';
+      }
+      break;
+    case "view":
+      if (stdout.includes("0 items") || stdout.includes("empty directory")) {
+        return "tip: directory is empty. use radius create <file> to add files";
+      }
+      break;
+    case "grep":
+      if (stdout.includes("0 matches") || stdout.includes("no matches")) {
+        return "tip: try --ignore-case or --regex for broader matching";
+      }
+      break;
+  }
+  return null;
+}

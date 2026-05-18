@@ -47,4 +47,6 @@ export interface IpcResponse {
   warnings?: string[];
   /** 書き込みコマンドの変更メタデータ（Phase 16、任意）。 */
   changes?: ChangeMetadata[];
+  /** コマンドが操作した主ファイル（context付帯用）。 */
+  primaryFile?: string;
 }

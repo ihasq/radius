@@ -26,10 +26,11 @@ import { handlers, type DaemonContext } from "./registry";
 import { findCommand, generateUsage, buildRequestWithTag } from "../cli/registry";
 import { readStdin, isStdinAvailable } from "../shared/stdin";
 import { muted, stripAnsi, shouldStripColors } from "../shared/colors";
-import { getTip } from "../cli/tips";
+import { getTip, getSuccessTip } from "../cli/tips";
 import type { IpcResponse, IpcRequest } from "../shared/types";
 import pkg from "../../package.json";
 import { debug, debugTime } from "../shared/debug";
+import { analyzeFileContext, formatFileContext } from "../shared/context";
 
 // ==================== CLI MODE ====================
 // When invoked with --exec, run as CLI instead of daemon
@@ -219,6 +220,18 @@ async function runCliMode(): Promise<void> {
       console.log(output);
     } else {
       console.log(JSON.stringify(response.data, null, 2));
+    }
+
+    // 成功時tips
+    if (response.ok) {
+      const successTip = getSuccessTip(
+        commandName,
+        args,
+        typeof response.data === "string" ? response.data : ""
+      );
+      if (successTip) {
+        console.error(successTip);
+      }
     }
   }
 
@@ -557,6 +570,20 @@ for (const handlerDef of handlers) {
           let finalData = response.data;
           if (notificationMessages.length > 0 && typeof finalData === "string") {
             finalData = notificationMessages.join("\n") + finalData;
+          }
+
+          // ファイルコンテキストを追加
+          if (response.primaryFile && typeof finalData === "string") {
+            try {
+              const { readFileSync } = await import("node:fs");
+              const content = readFileSync(response.primaryFile, "utf-8");
+              const ctx = analyzeFileContext(response.primaryFile, content);
+              if (ctx) {
+                finalData += formatFileContext(ctx);
+              }
+            } catch {
+              // エラーは無視
+            }
           }
 
           // 非推奨警告とvalidateAndRewindからの警告をマージ
