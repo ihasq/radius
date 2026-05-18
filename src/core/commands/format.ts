@@ -11,6 +11,7 @@ import type { HistoryTracker } from "../history/tracker";
 import type { Changeset } from "../history/types";
 import type { IpcResponse, ChangeMetadata } from "../../shared/types";
 import type { LspManager } from "../../lsp/manager";
+import { resolveLanguageId } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import { collectDiagnostics, formatDiagnostics } from "../../lsp/diagnostics";
 import { filepath } from "../../shared/colors";
@@ -57,7 +58,7 @@ export async function handleFormat(
     };
   }
 
-  const languageId = getLanguageId(absPath);
+  const languageId = resolveLanguageId(absPath);
 
   // ドキュメントを開く
   client.openDocument(uri, languageId, content);
@@ -187,25 +188,3 @@ function getOffset(lines: string[], line: number, character: number): number {
   return offset;
 }
 
-/**
- * ファイル拡張子から言語IDを取得する。
- */
-function getLanguageId(filePath: string): string {
-  const ext = filePath.split(".").pop()?.toLowerCase();
-  switch (ext) {
-    case "ts":
-    case "tsx":
-      return "typescript";
-    case "js":
-    case "jsx":
-      return "javascript";
-    case "json":
-      return "json";
-    case "css":
-      return "css";
-    case "html":
-      return "html";
-    default:
-      return "plaintext";
-  }
-}

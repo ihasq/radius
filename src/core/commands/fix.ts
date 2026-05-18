@@ -11,6 +11,7 @@ import type { HistoryTracker } from "../history/tracker";
 import type { Changeset } from "../history/types";
 import type { IpcResponse, ChangeMetadata } from "../../shared/types";
 import type { LspManager } from "../../lsp/manager";
+import { resolveLanguageId } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import { collectDiagnostics, formatDiagnostics } from "../../lsp/diagnostics";
 import { filepath, marker as colorMarker } from "../../shared/colors";
@@ -61,7 +62,7 @@ export async function handleFix(
   }
 
   const lines = content.split("\n");
-  const languageId = getLanguageId(absPath);
+  const languageId = resolveLanguageId(absPath);
 
   // ドキュメントを開く
   client.openDocument(uri, languageId, content);
@@ -136,6 +137,12 @@ export async function handleFix(
       selectedAction = actions[idx];
     } else {
       selectedAction = actions[0];
+    }
+
+    // アクションに適用可能な編集がない場合は早期リターン
+    if (!selectedAction.edit && !selectedAction.command) {
+      client.closeDocument(uri);
+      return { ok: true, data: `no applicable edit for action: ${selectedAction.title}` };
     }
 
     // WorkspaceEdit を適用
@@ -331,25 +338,3 @@ function generateChangeContext(content: string, metadata: ChangeMetadata | null)
   return output.join("\n");
 }
 
-/**
- * ファイル拡張子から言語IDを取得する。
- */
-function getLanguageId(filePath: string): string {
-  const ext = filePath.split(".").pop()?.toLowerCase();
-  switch (ext) {
-    case "ts":
-    case "tsx":
-      return "typescript";
-    case "js":
-    case "jsx":
-      return "javascript";
-    case "json":
-      return "json";
-    case "css":
-      return "css";
-    case "html":
-      return "html";
-    default:
-      return "plaintext";
-  }
-}
