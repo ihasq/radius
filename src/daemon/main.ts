@@ -26,6 +26,7 @@ import { handlers, type DaemonContext } from "./registry";
 import { findCommand, generateUsage, buildRequestWithTag } from "../cli/registry";
 import { readStdin, isStdinAvailable } from "../shared/stdin";
 import { muted, stripAnsi, shouldStripColors } from "../shared/colors";
+import { getTip } from "../cli/tips";
 import type { IpcResponse, IpcRequest } from "../shared/types";
 import pkg from "../../package.json";
 import { debug, debugTime } from "../shared/debug";
@@ -192,6 +193,13 @@ async function runCliMode(): Promise<void> {
   // エラーハンドリング
   if (!response.ok) {
     console.error(`error: ${response.error}`);
+    // tips 追加（--help 指定時は除外）
+    if (!args.includes("--help") && !args.includes("-h")) {
+      const tip = getTip(commandName, response.error || "");
+      if (tip) {
+        console.error(tip);
+      }
+    }
     process.exit(1);
   }
 

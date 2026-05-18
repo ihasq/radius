@@ -16,6 +16,7 @@ import type { IpcRequest } from "../shared/types";
 import { readStdin, isStdinAvailable } from "../shared/stdin";
 import pkg from "../../package.json";
 import { muted, stripAnsi, shouldStripColors } from "../shared/colors";
+import { getTip } from "./tips";
 
 /**
  * PIDファイルに記録されたプロセスが生存しているか確認する。
@@ -184,6 +185,13 @@ async function main(): Promise<void> {
   // A: エラーハンドリング
   if (!response.ok) {
     console.error(`error: ${response.error}`);
+    // tips 追加（--help 指定時は除外）
+    if (!args.includes("--help") && !args.includes("-h")) {
+      const tip = getTip(commandName, response.error || "");
+      if (tip) {
+        console.error(tip);
+      }
+    }
     process.exit(1);
   }
 
