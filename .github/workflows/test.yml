@@ -54,9 +54,21 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun add -g typescript-language-server typescript
-      - run: bun test --timeout 60000 tests/lsp-core.test.ts tests/lsp-diagnostics.test.ts tests/lsp-lifecycle.test.ts tests/diagnostics-tracking.test.ts
+      - name: Verify fixture deps
+        run: |
+          ls -la tests/fixtures/ts-project/node_modules/@types/node/index.d.ts 2>&1 || echo "MISSING: @types/node"
+          cat tests/fixtures/ts-project/package.json
+      - name: Run tests (lsp)
+        run: bun test --timeout 60000 tests/lsp-core.test.ts tests/lsp-diagnostics.test.ts tests/lsp-lifecycle.test.ts tests/diagnostics-tracking.test.ts 2>&1 | tee /tmp/lsp-test.log
         env:
           FORCE_COLOR: "0"
+          RADIUS_DEBUG: "1"
+      - name: Upload test log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lsp-test-log
+          path: /tmp/lsp-test.log
 
   test-extensions:
     needs: typecheck
