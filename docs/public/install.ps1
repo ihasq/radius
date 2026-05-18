@@ -69,6 +69,9 @@ $RadiusCmdPath = Join-Path $InstallDir "radius.cmd"
 "%~dp0radiusd.exe" --exec %*
 "@ | Out-File -FilePath $RadiusCmdPath -Encoding ASCII -NoNewline
 
+# Stop existing daemon (if running)
+try { & "$InstallDir\radiusd.exe" --exec daemon stop 2>$null } catch {}
+
 # Cleanup
 Remove-Item -Recurse -Force $TmpDir
 

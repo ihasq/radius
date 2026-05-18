@@ -70,6 +70,9 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 exec "$DIR/radiusd" --exec "$@"
 EOF
   chmod +x "${INSTALL_DIR}/radius"
+
+  # Stop existing daemon (if running)
+  "$INSTALL_DIR/radiusd" --exec daemon stop 2>/dev/null || true
 }
 
 setup_path() {
