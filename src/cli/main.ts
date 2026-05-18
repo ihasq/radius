@@ -82,6 +82,7 @@ async function ensureDaemon(): Promise<boolean> {
       ...process.env,
       RADIUS_HOME: process.env.RADIUS_HOME || "",
       RADIUS_DEBUG: process.env.RADIUS_DEBUG || "",
+      RADIUS_RELEASE_HASH: process.env.RADIUS_RELEASE_HASH || "",
     },
   });
   child.unref();

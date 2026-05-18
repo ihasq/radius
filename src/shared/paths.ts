@@ -16,12 +16,16 @@ export function ensureRadiusHome(): string {
 
 /** デーモンのUDSソケットパスを返す。 */
 export function getSocketPath(): string {
-  return resolve(ensureRadiusHome(), "daemon.sock");
+  const hash = process.env.RADIUS_RELEASE_HASH;
+  const filename = hash ? `daemon-${hash}.sock` : "daemon.sock";
+  return resolve(ensureRadiusHome(), filename);
 }
 
 /** デーモンのPIDファイルパスを返す。 */
 export function getPidPath(): string {
-  return resolve(ensureRadiusHome(), "daemon.pid");
+  const hash = process.env.RADIUS_RELEASE_HASH;
+  const filename = hash ? `daemon-${hash}.pid` : "daemon.pid";
+  return resolve(ensureRadiusHome(), filename);
 }
 
 /** プロジェクトの絶対パスからSHA-256先頭16文字のハッシュを生成する。 */

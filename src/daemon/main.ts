@@ -6,12 +6,12 @@
  * - CLI mode (--exec): Transparent wrapper to CLI functionality
  */
 
-import { writeFileSync, unlinkSync, existsSync, readFileSync } from "node:fs";
+import { writeFileSync, unlinkSync, existsSync, readFileSync, readdirSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { IpcServer } from "../ipc/server";
 import { sendRequest } from "../ipc/client";
-import { getPidPath, getSocketPath } from "../shared/paths";
+import { getPidPath, getSocketPath, getRadiusHome } from "../shared/paths";
 import { findProjectRoot } from "../shared/project";
 import { LspManager } from "../lsp/manager";
 import { HistoryTracker } from "../core/history/tracker";
@@ -92,6 +92,12 @@ async function ensureDaemon(): Promise<boolean> {
   const child = spawn(daemonCmd, daemonArgs, {
     stdio: "ignore",
     detached: true,
+    env: {
+      ...process.env,
+      RADIUS_HOME: process.env.RADIUS_HOME || "",
+      RADIUS_DEBUG: process.env.RADIUS_DEBUG || "",
+      RADIUS_RELEASE_HASH: process.env.RADIUS_RELEASE_HASH || "",
+    },
   });
   child.unref();
 
@@ -576,7 +582,128 @@ for (const handlerDef of handlers) {
 
 // --- 起動 ---
 
+/**
+ * ソケットファイルが使用中（デーモンが稼働中）かを確認する。
+ */
+function isSocketInUse(socketPath: string): boolean {
+  try {
+    const { Socket } = require("node:net");
+    const socket = new Socket();
+    let inUse = false;
+
+    return new Promise<boolean>((resolve) => {
+      socket.once("connect", () => {
+        inUse = true;
+        socket.destroy();
+        resolve(true);
+      });
+      socket.once("error", () => {
+        resolve(false);
+      });
+      socket.connect(socketPath);
+      // タイムアウト
+      setTimeout(() => {
+        socket.destroy();
+        resolve(inUse);
+      }, 100);
+    }) as unknown as boolean; // 同期的に使うためワークアラウンド
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 古いバージョンのソケット/PIDファイルをクリーンアップする。
+ * RADIUS_RELEASE_HASH が設定されている場合、現在のハッシュ以外の
+ * 使われていないdaemon-*.sock / daemon-*.pid ファイルを削除する。
+ * 稼働中のデーモンのファイルは削除しない。
+ */
+function cleanupStaleVersionFiles(): void {
+  const hash = process.env.RADIUS_RELEASE_HASH;
+  if (!hash) return; // 開発モードではクリーンアップしない
+
+  const radiusHome = getRadiusHome();
+  if (!existsSync(radiusHome)) return;
+
+  const currentSocketName = `daemon-${hash}.sock`;
+  const currentPidName = `daemon-${hash}.pid`;
+
+  try {
+    const files = readdirSync(radiusHome);
+    for (const file of files) {
+      // daemon-*.sock または daemon-*.pid パターンにマッチするか確認
+      const isVersionedSocket = file.startsWith("daemon-") && file.endsWith(".sock");
+      const isVersionedPid = file.startsWith("daemon-") && file.endsWith(".pid");
+
+      if (isVersionedSocket && file !== currentSocketName) {
+        const socketPath = resolve(radiusHome, file);
+        // PIDファイルの存在とプロセス生存を確認
+        const pidFile = file.replace(".sock", ".pid");
+        const pidPath = resolve(radiusHome, pidFile);
+        let isStale = true;
+
+        if (existsSync(pidPath)) {
+          try {
+            const pid = parseInt(readFileSync(pidPath, "utf-8").trim(), 10);
+            if (pid > 0) {
+              // プロセスが生存しているか確認
+              try {
+                process.kill(pid, 0);
+                isStale = false; // プロセスが生存している
+              } catch {
+                // プロセスが存在しない = stale
+              }
+            }
+          } catch {
+            // PID読み取り失敗 = stale
+          }
+        }
+
+        if (isStale) {
+          try {
+            unlinkSync(socketPath);
+          } catch {
+            // 削除失敗は無視
+          }
+        }
+      }
+
+      if (isVersionedPid && file !== currentPidName) {
+        const pidPath = resolve(radiusHome, file);
+        let isStale = true;
+
+        try {
+          const pid = parseInt(readFileSync(pidPath, "utf-8").trim(), 10);
+          if (pid > 0) {
+            try {
+              process.kill(pid, 0);
+              isStale = false; // プロセスが生存している
+            } catch {
+              // プロセスが存在しない = stale
+            }
+          }
+        } catch {
+          // PID読み取り失敗 = stale
+        }
+
+        if (isStale) {
+          try {
+            unlinkSync(pidPath);
+          } catch {
+            // 削除失敗は無視
+          }
+        }
+      }
+    }
+  } catch {
+    // ディレクトリ読み取り失敗は無視
+  }
+}
+
 async function startDaemon(): Promise<void> {
+  // 古いバージョンのソケット/PIDファイルをクリーンアップ
+  cleanupStaleVersionFiles();
+
   // 拡張をロード
   await initializeExtensions();
 
