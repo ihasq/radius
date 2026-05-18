@@ -15,7 +15,7 @@ import { findCommand, generateUsage, buildRequestWithTag } from "./registry";
 import type { IpcRequest } from "../shared/types";
 import { readStdin, isStdinAvailable } from "../shared/stdin";
 import pkg from "../../package.json";
-import { muted } from "../shared/colors";
+import { muted, stripAnsi, shouldStripColors } from "../shared/colors";
 
 /**
  * PIDファイルに記録されたプロセスが生存しているか確認する。
@@ -198,7 +198,9 @@ async function main(): Promise<void> {
   // A: データ出力
   if (response.data !== undefined) {
     if (typeof response.data === "string") {
-      console.log(response.data);
+      // NO_COLOR が設定されている場合はANSIコードを除去
+      const output = shouldStripColors() ? stripAnsi(response.data) : response.data;
+      console.log(output);
     } else {
       console.log(JSON.stringify(response.data, null, 2));
     }

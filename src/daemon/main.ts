@@ -25,7 +25,7 @@ import { DiagnosticRegistry } from "../lsp/diagnostic-registry";
 import { handlers, type DaemonContext } from "./registry";
 import { findCommand, generateUsage, buildRequestWithTag } from "../cli/registry";
 import { readStdin, isStdinAvailable } from "../shared/stdin";
-import { muted } from "../shared/colors";
+import { muted, stripAnsi, shouldStripColors } from "../shared/colors";
 import type { IpcResponse, IpcRequest } from "../shared/types";
 import pkg from "../../package.json";
 import { debug, debugTime } from "../shared/debug";
@@ -200,7 +200,9 @@ async function runCliMode(): Promise<void> {
   // データ出力
   if (response.data !== undefined) {
     if (typeof response.data === "string") {
-      console.log(response.data);
+      // NO_COLOR が設定されている場合はANSIコードを除去
+      const output = shouldStripColors() ? stripAnsi(response.data) : response.data;
+      console.log(output);
     } else {
       console.log(JSON.stringify(response.data, null, 2));
     }

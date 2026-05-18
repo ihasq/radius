@@ -104,3 +104,19 @@ export function muted(line: string): string {
   if (isColorDisabled()) return line;
   return `${DIM}${line}${RESET}`;
 }
+
+/**
+ * 文字列からANSIエスケープコードを除去する。
+ * NO_COLOR環境変数が設定されている場合にCLIで使用。
+ */
+export function stripAnsi(str: string): string {
+  // ANSI escape sequences: \x1b[...m (SGR) and other CSI sequences
+  return str.replace(/\x1b\[[0-9;]*m/g, "");
+}
+
+/**
+ * NO_COLOR が設定されているかどうかを外部から確認するためのエクスポート。
+ */
+export function shouldStripColors(): boolean {
+  return isColorDisabled();
+}
