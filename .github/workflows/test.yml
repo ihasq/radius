@@ -7,28 +7,57 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  typecheck:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bunx tsc --noEmit
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Type check
-        run: bun run tsc --noEmit
-
-      - name: Install LSP dependencies
-        run: |
-          bun add -g typescript-language-server typescript
-
-      - name: Run tests
-        run: bun test --timeout 60000
+  test:
+    needs: typecheck
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group:
+          - name: unit
+            files: "tests/update-crypto.test.ts tests/update-version.test.ts tests/ledger-unit.test.ts tests/colors.test.ts"
+            lsp: false
+          - name: basic
+            files: "tests/basic.test.ts tests/history.test.ts tests/dogtag.test.ts"
+            lsp: false
+          - name: lsp
+            files: "tests/lsp-core.test.ts tests/lsp-diagnostics.test.ts tests/lsp-lifecycle.test.ts tests/diagnostics-tracking.test.ts"
+            lsp: true
+          - name: extensions
+            files: "tests/extension-host.test.ts tests/openvsx.test.ts"
+            lsp: false
+          - name: commands
+            files: "tests/search-replace.test.ts tests/rename-imports.test.ts tests/graph.test.ts"
+            lsp: false
+          - name: codeactions
+            files: "tests/group-codeactions.test.ts tests/group-lspviews.test.ts tests/group-langtools.test.ts"
+            lsp: true
+          - name: multiagent
+            files: "tests/multi-agent.test.ts tests/multi-agent-e2e.test.ts tests/change-metadata.test.ts"
+            lsp: false
+          - name: update-e2e
+            files: "tests/update-e2e.test.ts"
+            lsp: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Install LSP
+        if: matrix.group.lsp
+        run: bun add -g typescript-language-server typescript
+      - name: Run tests (${{ matrix.group.name }})
+        run: bun test --timeout 60000 ${{ matrix.group.files }}
         env:
-          FORCE_COLOR: 0
+          FORCE_COLOR: "0"
