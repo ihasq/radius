@@ -12,7 +12,8 @@ import type { Changeset } from "../history/types";
 import type { IpcResponse, ChangeMetadata } from "../../shared/types";
 import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
-import { collectDiagnostics, formatDiagnostics } from "../../lsp/diagnostics";
+import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
+import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
 import { filepath, marker as colorMarker } from "../../shared/colors";
 
 /**
@@ -22,7 +23,8 @@ export async function handleStrReplace(
   args: Record<string, unknown>,
   lspManager: LspManager,
   historyTracker: HistoryTracker,
-  bufferManager: BufferManager
+  bufferManager: BufferManager,
+  diagnosticRegistry: DiagnosticRegistry
 ): Promise<IpcResponse> {
   const file = args.file as string | undefined;
   const oldText = args.old as string | undefined;
@@ -105,18 +107,20 @@ export async function handleStrReplace(
   // 変更箇所のコンテキストを生成
   const context = generateChangeContext(newContent, occurrences[0], oldText.length, newText.length);
 
-  // LSP診断情報を収集
-  const diagnosticReport = await collectDiagnostics(lspManager, absPath, newContent);
-  const diagnosticsOutput = diagnosticReport
-    ? `\ndiagnostics:\n${formatDiagnostics(diagnosticReport)}`
-    : "";
+  // LSP診断情報を収集（ID付与・差分検出）
+  const diagnosticsOutput = await collectAndFormatWithTracking(
+    lspManager,
+    diagnosticRegistry,
+    absPath,
+    newContent
+  );
 
   // Phase 16: 変更メタデータを計算
   const changeMetadata = calculateChangeMetadata(content, newContent, occurrences[0], oldText, newText, absPath);
 
   return {
     ok: true,
-    data: `replaced 1 occurrence in ${filepath(absPath)}\n\n${context}${diagnosticsOutput}`,
+    data: `replaced 1 occurrence in ${filepath(absPath)}\n\n${context}\n${diagnosticsOutput}`,
     changes: changeMetadata ? [changeMetadata] : undefined,
   };
 }

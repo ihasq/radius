@@ -12,6 +12,8 @@ import type { LspManager } from "../../lsp/manager";
 import type { HistoryTracker } from "../history/tracker";
 import type { BufferManager } from "../buffer/manager";
 import type { Changeset } from "../history/types";
+import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
+import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
 
 /** スニペット定義。 */
 interface Snippet {
@@ -102,7 +104,8 @@ export async function handleSnippet(
   args: Record<string, unknown>,
   lspManager: LspManager,
   historyTracker: HistoryTracker | null,
-  bufferManager: BufferManager
+  bufferManager: BufferManager,
+  diagnosticRegistry: DiagnosticRegistry | null
 ): Promise<IpcResponse> {
   const list = args.list === true;
   const language = args.language as string | undefined;
@@ -202,7 +205,28 @@ export async function handleSnippet(
     };
     await historyTracker.record(changeset);
 
-    return { ok: true, data: `inserted snippet '${name}' at line ${lineNumber}` };
+    // 診断情報を収集
+    let diagnosticsOutput = "";
+    if (diagnosticRegistry) {
+      diagnosticsOutput = await collectAndFormatWithTracking(
+        lspManager,
+        diagnosticRegistry,
+        absPath,
+        newContent
+      );
+    }
+
+    const output = diagnosticsOutput
+      ? [`inserted snippet '${name}' at line ${lineNumber}`, "", diagnosticsOutput].join("\n")
+      : `inserted snippet '${name}' at line ${lineNumber}`;
+
+    const insertedLineCount = expandedBody.split("\n").length;
+    const newEndLine = lineNumber + insertedLineCount - 1;
+    return {
+      ok: true,
+      data: output,
+      changes: [{ filePath: absPath, startLine: lineNumber, endLine: lineNumber, newEndLine }],
+    };
   }
 
   // historyTracker がない場合はタグなしで返す

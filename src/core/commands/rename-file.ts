@@ -15,6 +15,7 @@ import type { Changeset, FileChange } from "../history/types";
 import type { IpcRequest, IpcResponse } from "../../shared/types";
 import type { DaemonContext } from "../../daemon/registry";
 import { filepath, muted } from "../../shared/colors";
+import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
 
 /**
  * rename-file コマンドのエントリポイント。
@@ -248,9 +249,26 @@ export async function handleRenameFile(
     client.closeDocument(newUri);
   }
 
-  // 12. サマリ返却
-  const output = formatOutput(oldAbsPath, newAbsPath, importEntries.length, updatedFiles);
-  return { ok: true, data: output };
+  // 12. 診断情報を収集（リネーム先ファイル）
+  const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
+  const newFileContent = ctx.bufferManager.getContent(newAbsPath);
+  const diagnosticsOutput = await collectAndFormatWithTracking(
+    ctx.lspManager,
+    diagnosticRegistry,
+    newAbsPath,
+    newFileContent
+  );
+
+  // 13. サマリ返却
+  const output = formatOutput(oldAbsPath, newAbsPath, importEntries.length, updatedFiles, diagnosticsOutput);
+
+  // 変更情報を返す（台帳記録用）
+  const lineCount = newFileContent.split("\n").length;
+  const changes = [
+    { filePath: newAbsPath, startLine: 1, endLine: lineCount, newEndLine: lineCount },
+  ];
+
+  return { ok: true, data: output, changes };
 }
 
 /**
@@ -303,7 +321,8 @@ function formatOutput(
   oldPath: string,
   newPath: string,
   importCount: number,
-  updatedFiles: string[]
+  updatedFiles: string[],
+  diagnosticsOutput: string
 ): string {
   const lines = [
     `renamed: ${filepath(oldPath)} → ${filepath(newPath)}`,
@@ -317,6 +336,9 @@ function formatOutput(
       lines.push(muted(`--- ${filepath(file)} (1 edit) ---`));
     }
   }
+
+  lines.push("");
+  lines.push(diagnosticsOutput);
 
   return lines.join("\n");
 }

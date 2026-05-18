@@ -4,9 +4,10 @@
 
 import { test, expect, describe, beforeEach } from "bun:test";
 import { ChangeLedger } from "../src/core/agent/ledger";
-import { rmSync, existsSync, readdirSync, unlinkSync } from "node:fs";
+import { rmSync, existsSync, readdirSync, unlinkSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { projectHash, getRadiusHome } from "../src/shared/paths";
 
 // テスト前に全ledgerファイルをクリーンアップ
 beforeEach(() => {
@@ -58,7 +59,14 @@ describe("ChangeLedger", () => {
   });
 
   test("finds overlapping changes", async () => {
-    const ledger = new ChangeLedger("/tmp/test-ledger-project-2");
+    const projectRoot = "/tmp/test-ledger-project-2";
+    const ledger = new ChangeLedger(projectRoot);
+
+    // chain-a のセッションファイルを作成（アクティブ状態をシミュレート）
+    const hash = await projectHash(projectRoot);
+    const sessionsDir = join(getRadiusHome(), hash, "sessions");
+    mkdirSync(sessionsDir, { recursive: true });
+    writeFileSync(join(sessionsDir, "chain-a.json"), JSON.stringify({ currentSeq: 1 }));
 
     // Chain A makes a change
     await ledger.record({

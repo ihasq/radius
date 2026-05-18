@@ -10,7 +10,7 @@ import type { IpcRequest, IpcResponse, ChangeMetadata } from "../../shared/types
 import type { DaemonContext } from "../../daemon/registry";
 import { replaceInContent, type SearchOptions } from "../search/engine";
 import { findFiles, type GlobOptions } from "../search/glob";
-import { collectDiagnostics, formatDiagnostics, type DiagnosticReport } from "../../lsp/diagnostics";
+import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
 import { findProjectRoot } from "../../shared/project";
 import { marker as colorMarker } from "../../shared/colors";
 
@@ -163,41 +163,26 @@ export async function handleReplaceAll(
 
   await historyTracker.record(changeset);
 
-  // LSP診断収集（変更されたファイル全て）
-  const diagnosticReports: DiagnosticReport[] = [];
+  // LSP診断収集（変更されたファイル全て、ID付与・差分検出）
+  const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
+  const diagnosticsOutputs: string[] = [];
 
   for (const rep of replacements) {
-    const report = await collectDiagnostics(ctx.lspManager, rep.filePath, rep.newContent);
-    if (report && report.diagnostics.length > 0) {
-      diagnosticReports.push(report);
+    const diagnosticsOutput = await collectAndFormatWithTracking(
+      ctx.lspManager,
+      diagnosticRegistry,
+      rep.filePath,
+      rep.newContent
+    );
+    if (!diagnosticsOutput.includes("diagnostics: ok")) {
+      const relativePath = relative(cwd || process.cwd(), rep.filePath);
+      diagnosticsOutputs.push(`\n--- ${relativePath} ---\n${diagnosticsOutput}`);
     }
   }
 
-  let diagnosticsOutput = "diagnostics: ok";
-  if (diagnosticReports.length > 0) {
-    const errorCount = diagnosticReports.reduce(
-      (sum, r) => sum + r.diagnostics.filter((d) => d.severity === 1).length,
-      0
-    );
-    const warningCount = diagnosticReports.reduce(
-      (sum, r) => sum + r.diagnostics.filter((d) => d.severity === 2).length,
-      0
-    );
-
-    if (errorCount > 0 || warningCount > 0) {
-      const summary: string[] = [];
-      if (errorCount > 0) summary.push(`${errorCount} error${errorCount !== 1 ? "s" : ""}`);
-      if (warningCount > 0) summary.push(`${warningCount} warning${warningCount !== 1 ? "s" : ""}`);
-
-      diagnosticsOutput = `diagnostics: ${summary.join(", ")}`;
-
-      // エラーがあるファイルの診断情報を表示
-      for (const report of diagnosticReports.filter((r) => r.diagnostics.some((d) => d.severity === 1))) {
-        const relativePath = relative(cwd || process.cwd(), report.uri.replace("file://", ""));
-        diagnosticsOutput += `\n\n--- ${relativePath} ---\n${formatDiagnostics(report)}`;
-      }
-    }
-  }
+  const diagnosticsOutput = diagnosticsOutputs.length > 0
+    ? `diagnostics:${diagnosticsOutputs.join("\n")}`
+    : "diagnostics: ok";
 
   // 出力生成
   const lines: string[] = [];

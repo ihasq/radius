@@ -38,6 +38,20 @@ Rename a file and update all imports:
 radius rename-file <old-path> <new-path>
 ```
 
+## Diagnostic Output
+
+Refactoring commands (`modify-var`, `rename-file`) show diagnostic tracking:
+
+```
+renamed: userId → customerId (3 occurrences)
+
+diagnostics: ok
+```
+
+- **D-NNN IDs**: Track any new diagnostics introduced by refactoring
+- **Resolution tracking**: Shows if the refactor fixed any existing issues
+- **"diagnostics: ok"**: Confirms the refactor introduced no errors
+
 ## Guidelines
 
 1. Use `read-var` before `modify-var` to preview affected locations
@@ -45,6 +59,7 @@ radius rename-file <old-path> <new-path>
 3. File rename updates relative imports automatically
 4. All changes are tracked - undo with `radius undo`
 5. For TypeScript/JavaScript, ensure tsconfig.json exists for best results
+6. Check diagnostic output to verify refactor didn't break type safety
 
 ## Examples
 

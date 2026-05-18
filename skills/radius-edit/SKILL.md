@@ -47,6 +47,23 @@ Create a new file:
 radius create <file> --content "<content>"
 ```
 
+## Diagnostic Output
+
+All edit commands show diagnostic tracking after changes:
+
+```
+diagnostics: ❌ 1 error
+  ❌ D-001 [2322] (line 5): Type 'string' is not assignable to type 'number'
+
+resolved:
+  ✅ D-002 [2322] (line 8): Previous type error
+1 issue resolved by this change.
+```
+
+- **D-NNN IDs**: Persistent identifiers for tracking specific issues
+- **Emoji indicators**: ❌ Error, ⚠️ Warning, ℹ️ Info, ✅ Resolved
+- **Resolution tracking**: Shows which diagnostics were fixed by the edit
+
 ## Guidelines
 
 1. Always use `radius view <file>` first to see current content with line numbers
@@ -54,6 +71,7 @@ radius create <file> --content "<content>"
 3. If replacement fails with "multiple matches", add more context to --old
 4. Each operation is recorded in history - use `radius undo` to revert mistakes
 5. Pass `--tag` from previous response to maintain session state
+6. Check diagnostic output after edits to verify no new errors were introduced
 
 ## Examples
 

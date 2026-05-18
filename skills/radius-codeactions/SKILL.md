@@ -41,6 +41,24 @@ Apply LSP formatting to a file:
 radius format <file>
 ```
 
+## Diagnostic Output
+
+Both `fix` and `format` commands show diagnostic tracking:
+
+```
+applied: Remove unused import (line 3)
+
+diagnostics: ok
+
+resolved:
+  ✅ D-001 [6133] (line 3): 'unused' is declared but never used
+1 issue resolved by this change.
+```
+
+- **D-NNN IDs**: Persistent identifiers for tracking specific issues
+- **Resolution tracking**: Shows which diagnostics were fixed by the action
+- **"diagnostics: ok"**: Indicates no remaining errors or warnings
+
 ## Guidelines
 
 1. Use `--list` first to see available actions before applying
@@ -48,6 +66,7 @@ radius format <file>
 3. Formatting follows the project's LSP configuration (tabs vs spaces, etc.)
 4. All changes are tracked - use `radius undo` to revert
 5. Pass `--tag` from previous response to maintain session state
+6. Check resolved section to confirm the intended diagnostic was fixed
 
 ## Examples
 

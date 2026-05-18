@@ -21,6 +21,7 @@ import { ExtensionLoader } from "../extension-host/loader";
 import { BufferManager } from "../core/buffer/manager";
 import { ChangeLedger } from "../core/agent/ledger";
 import { ConflictManager } from "../core/agent/conflict";
+import { DiagnosticRegistry } from "../lsp/diagnostic-registry";
 import { handlers, type DaemonContext } from "./registry";
 import { findCommand, generateUsage, buildRequestWithTag } from "../cli/registry";
 import { readStdin, isStdinAvailable } from "../shared/stdin";
@@ -226,6 +227,7 @@ const historyTrackers = new Map<string, HistoryTracker>();
 const sessionManagers = new Map<string, SessionManager>();
 const ledgers = new Map<string, ChangeLedger>();
 const conflictManagers = new Map<string, ConflictManager>();
+const diagnosticRegistries = new Map<string, DiagnosticRegistry>();
 let idleTimer: ReturnType<typeof setTimeout>;
 
 /** プロジェクトルート・チェーンIDに対応する HistoryTracker を取得 */
@@ -269,6 +271,17 @@ function getConflictManager(projectRoot: string): ConflictManager {
     conflictManagers.set(projectRoot, manager);
   }
   return manager;
+}
+
+/** プロジェクトルートに対応する DiagnosticRegistry を取得 */
+function getDiagnosticRegistry(projectRoot: string): DiagnosticRegistry {
+  let registry = diagnosticRegistries.get(projectRoot);
+  if (!registry) {
+    registry = new DiagnosticRegistry(projectRoot);
+    registry.load();
+    diagnosticRegistries.set(projectRoot, registry);
+  }
+  return registry;
 }
 
 function resetIdleTimer(): void {
@@ -325,6 +338,7 @@ const context: DaemonContext = {
   getSessionManager,
   getLedger,
   getConflictManager,
+  getDiagnosticRegistry,
   extensionRegistry,
   extensionLoader,
   bufferManager,

@@ -46,6 +46,7 @@ import type { ExtensionLoader } from "../extension-host/loader";
 import type { BufferManager } from "../core/buffer/manager";
 import type { ChangeLedger } from "../core/agent/ledger";
 import type { ConflictManager } from "../core/agent/conflict";
+import type { DiagnosticRegistry } from "../lsp/diagnostic-registry";
 
 /** デーモンコンテキスト。 */
 export interface DaemonContext {
@@ -54,6 +55,7 @@ export interface DaemonContext {
   getSessionManager(projectRoot: string, chainId: string): SessionManager;
   getLedger(projectRoot: string): ChangeLedger;
   getConflictManager(projectRoot: string): ConflictManager;
+  getDiagnosticRegistry(projectRoot: string): DiagnosticRegistry;
   extensionRegistry: ExtensionRegistry;
   extensionLoader: ExtensionLoader;
   bufferManager: BufferManager;
@@ -103,7 +105,8 @@ export const handlers: HandlerDef[] = [
       const projectRoot = findProjectRoot(filePath);
       const chainId = (request as any).chainId as string;
       const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
-      return await handleModifyVar(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
+      const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
+      return await handleModifyVar(request.args, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry);
     },
   },
   {
@@ -148,7 +151,8 @@ export const handlers: HandlerDef[] = [
       const projectRoot = findProjectRoot(filePath);
       const chainId = (request as any).chainId as string;
       const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
-      return await handleSolveConflict(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
+      const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
+      return await handleSolveConflict(request.args, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry);
     },
   },
   {
@@ -196,7 +200,8 @@ export const handlers: HandlerDef[] = [
       const projectRoot = findProjectRoot(filePath);
       const chainId = (request as any).chainId as string;
       const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
-      return await handleStrReplace(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
+      const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
+      return await handleStrReplace(request.args, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry);
     },
   },
   {
@@ -211,7 +216,8 @@ export const handlers: HandlerDef[] = [
       const projectRoot = findProjectRoot(filePath);
       const chainId = (request as any).chainId as string;
       const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
-      return await handleCreate(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
+      const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
+      return await handleCreate(request.args, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry);
     },
   },
   {
@@ -226,7 +232,8 @@ export const handlers: HandlerDef[] = [
       const projectRoot = findProjectRoot(filePath);
       const chainId = (request as any).chainId as string;
       const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
-      return await handleInsert(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
+      const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
+      return await handleInsert(request.args, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry);
     },
   },
   {
@@ -306,7 +313,8 @@ export const handlers: HandlerDef[] = [
       const projectRoot = findProjectRoot(filePath);
       const chainId = (request as any).chainId as string;
       const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
-      return await handleFix(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
+      const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
+      return await handleFix(request.args, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry);
     },
   },
   {
@@ -321,7 +329,8 @@ export const handlers: HandlerDef[] = [
       const projectRoot = findProjectRoot(filePath);
       const chainId = (request as any).chainId as string;
       const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
-      return await handleFormat(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
+      const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
+      return await handleFormat(request.args, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry);
     },
   },
   // Phase 18: LLM可読ビュー
@@ -381,7 +390,8 @@ export const handlers: HandlerDef[] = [
       const projectRoot = findProjectRoot(filePath);
       const chainId = (request as any).chainId as string;
       const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
-      return await handleComment(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
+      const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
+      return await handleComment(request.args, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry);
     },
   },
   {
@@ -394,10 +404,11 @@ export const handlers: HandlerDef[] = [
         const projectRoot = findProjectRoot(filePath);
         const chainId = (request as any).chainId as string;
         const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
-        return await handleSnippet(request.args, ctx.lspManager, historyTracker, ctx.bufferManager);
+        const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
+        return await handleSnippet(request.args, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry);
       }
       // --list mode doesn't require file
-      return await handleSnippet(request.args, ctx.lspManager, null, ctx.bufferManager);
+      return await handleSnippet(request.args, ctx.lspManager, null, ctx.bufferManager, null);
     },
   },
   {

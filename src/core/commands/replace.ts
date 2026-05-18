@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 import type { IpcRequest, IpcResponse, ChangeMetadata } from "../../shared/types";
 import type { DaemonContext } from "../../daemon/registry";
 import { replaceInContent, type SearchOptions } from "../search/engine";
-import { collectDiagnostics, formatDiagnostics } from "../../lsp/diagnostics";
+import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
 import { findProjectRoot } from "../../shared/project";
 import { marker as colorMarker } from "../../shared/colors";
 
@@ -109,13 +109,14 @@ export async function handleReplace(
 
   await historyTracker.record(changeset);
 
-  // LSP診断収集
-  const diagnosticReport = await collectDiagnostics(ctx.lspManager, filePath, result.newContent);
-  let diagnosticsOutput = "diagnostics: ok";
-
-  if (diagnosticReport && diagnosticReport.diagnostics.length > 0) {
-    diagnosticsOutput = `diagnostics:\n${formatDiagnostics(diagnosticReport)}`;
-  }
+  // LSP診断収集（ID付与・差分検出）
+  const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
+  const diagnosticsOutput = await collectAndFormatWithTracking(
+    ctx.lspManager,
+    diagnosticRegistry,
+    filePath,
+    result.newContent
+  );
 
   // 出力生成
   const lines: string[] = [];

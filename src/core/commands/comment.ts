@@ -12,6 +12,8 @@ import type { LspManager } from "../../lsp/manager";
 import type { HistoryTracker } from "../history/tracker";
 import type { BufferManager } from "../buffer/manager";
 import type { Changeset } from "../history/types";
+import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
+import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
 
 /** 言語ごとのコメント構文。 */
 interface CommentSyntax {
@@ -57,7 +59,8 @@ export async function handleComment(
   args: Record<string, unknown>,
   lspManager: LspManager,
   historyTracker: HistoryTracker,
-  bufferManager: BufferManager
+  bufferManager: BufferManager,
+  diagnosticRegistry: DiagnosticRegistry
 ): Promise<IpcResponse> {
   const file = args.file as string | undefined;
   const lineArg = args.line as string | number | undefined;
@@ -179,7 +182,25 @@ export async function handleComment(
   };
   await historyTracker.record(changeset);
 
-  return { ok: true, data: `${action} lines ${startLine + 1}:${endLine + 1} in ${relativePath}` };
+  // 診断情報を収集
+  const diagnosticsOutput = await collectAndFormatWithTracking(
+    lspManager,
+    diagnosticRegistry,
+    absPath,
+    newContent
+  );
+
+  const output = [
+    `${action} lines ${startLine + 1}:${endLine + 1} in ${relativePath}`,
+    "",
+    diagnosticsOutput,
+  ].join("\n");
+
+  return {
+    ok: true,
+    data: output,
+    changes: [{ filePath: absPath, startLine: startLine + 1, endLine: endLine + 1, newEndLine: endLine + 1 }],
+  };
 }
 
 /**

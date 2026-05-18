@@ -53,6 +53,21 @@ radius task list                        # List available tasks
 radius task run <name>                  # Run a task
 ```
 
+## Diagnostic Output
+
+Edit commands (`comment`, `snippet`) show diagnostic tracking:
+
+```
+inserted snippet 'for' at line 15
+
+diagnostics: ⚠️ 1 warning
+  ⚠️ D-001 [6133] (line 15): 'i' is declared but never used
+```
+
+- **D-NNN IDs**: Track diagnostics introduced by scaffold code
+- **Resolution tracking**: Shows if edits fix existing issues
+- **Useful for debugging**: Comment out code, check if diagnostics resolve
+
 ## Guidelines
 
 1. Use `comment` for quick commenting/uncommenting during debugging
@@ -60,6 +75,7 @@ radius task run <name>                  # Run a task
 3. Use `tokens` to understand code structure for syntax-aware operations
 4. Use `task` to run build/test tasks defined in the project
 5. All edit commands support undo via `radius undo`
+6. Check diagnostic output after snippet insertion for placeholder warnings
 
 ## Examples
 

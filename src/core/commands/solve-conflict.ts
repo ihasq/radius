@@ -12,7 +12,8 @@ import { findProjectRoot } from "../../shared/project";
 import type { Changeset } from "../history/types";
 import type { IpcResponse } from "../../shared/types";
 import type { BufferManager } from "../buffer/manager";
-import { collectDiagnostics, formatDiagnostics } from "../../lsp/diagnostics";
+import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
+import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
 import { filepath, removed, added } from "../../shared/colors";
 
 /**
@@ -22,7 +23,8 @@ export async function handleSolveConflict(
   args: Record<string, unknown>,
   lspManager: LspManager,
   historyTracker: HistoryTracker,
-  bufferManager: BufferManager
+  bufferManager: BufferManager,
+  diagnosticRegistry: DiagnosticRegistry
 ): Promise<IpcResponse> {
   const filePath = args.file as string | undefined;
   if (!filePath) {
@@ -120,13 +122,15 @@ export async function handleSolveConflict(
   // 出力フォーマット
   const output = formatResolveMode(absPath, parseResult, conflictId, accept, customContent, afterParse.conflictCount);
 
-  // LSP診断情報を収集
-  const diagnosticReport = await collectDiagnostics(lspManager, absPath, resolvedContent);
-  const diagnosticsOutput = diagnosticReport
-    ? `\ndiagnostics:\n${formatDiagnostics(diagnosticReport)}`
-    : "";
+  // LSP診断情報を収集（ID付与・差分検出）
+  const diagnosticsOutput = await collectAndFormatWithTracking(
+    lspManager,
+    diagnosticRegistry,
+    absPath,
+    resolvedContent
+  );
 
-  return { ok: true, data: output + diagnosticsOutput };
+  return { ok: true, data: output + "\n" + diagnosticsOutput };
 }
 
 /**

@@ -7,7 +7,8 @@
     "daemon": "bun run src/daemon/main.ts",
     "build": "./scripts/build.sh",
     "test": "bun test --timeout 60000",
-    "test:dev": "bun test --bail --timeout 60000"
+    "test:dev": "bun test --bail --timeout 60000",
+    "test:failures": "bun test --timeout 60000 2>&1 | awk '/^\\(fail\\)/,/^\\(pass\\)|^\\(fail\\)|^\\(skip\\)|^[0-9]+ pass/'"
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.8",

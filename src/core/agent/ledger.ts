@@ -5,17 +5,19 @@
  * 全チェーンのファイル変更を時系列で記録する。
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { randomBytes } from "node:crypto";
-import { projectHash } from "../../shared/paths";
+import { projectHash, getRadiusHome } from "../../shared/paths";
 import type { LedgerEntry } from "./types";
 
 const MAX_ENTRIES = 1000;
 const DEFAULT_TIME_WINDOW_MINUTES = 30;
+const CHAIN_ACTIVE_THRESHOLD_MS = 5 * 60 * 1000; // 5分
 
 export class ChangeLedger {
   private ledgerPath: string = "";
+  private sessionsDir: string = "";
   private entries: LedgerEntry[] = [];
   private initialized = false;
 
@@ -26,14 +28,30 @@ export class ChangeLedger {
     if (this.initialized) return;
 
     const hash = await projectHash(this.projectRoot);
-    const radiusHome = require("os").homedir();
-    const projectDir = join(radiusHome, ".radius", hash);
+    const projectDir = join(getRadiusHome(), hash);
     this.ledgerPath = join(projectDir, "ledger.json");
+    this.sessionsDir = join(projectDir, "sessions");
 
     mkdirSync(projectDir, { recursive: true });
 
     this.load();
     this.initialized = true;
+  }
+
+  /**
+   * チェーンがアクティブかどうかを判定する。
+   * アクティブの定義: セッションファイルが存在し、直近5分以内に更新されている。
+   */
+  private isChainActive(chainId: string): boolean {
+    const sessionPath = join(this.sessionsDir, `${chainId}.json`);
+    if (!existsSync(sessionPath)) return false;
+
+    try {
+      const mtime = statSync(sessionPath).mtimeMs;
+      return Date.now() - mtime < CHAIN_ACTIVE_THRESHOLD_MS;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -86,6 +104,9 @@ export class ChangeLedger {
 
       // 同一チェーン除外
       if (entry.chainId === excludeChain) continue;
+
+      // 非アクティブチェーン除外（前回の会話が終了している場合）
+      if (!this.isChainActive(entry.chainId)) continue;
 
       // 行範囲重複チェック
       if (this.rangesOverlap(startLine, endLine, entry.startLine, entry.newEndLine)) {

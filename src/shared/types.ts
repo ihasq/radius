@@ -41,6 +41,8 @@ export interface IpcResponse {
   error?: string;
   /** 新しいドッグタグ（任意）。 */
   tag?: string;
+  /** 初回タグかどうか（first-time note表示用）。 */
+  isFirstTag?: boolean;
   /** 巻き戻り警告メッセージ（任意）。 */
   warnings?: string[];
   /** 書き込みコマンドの変更メタデータ（Phase 16、任意）。 */

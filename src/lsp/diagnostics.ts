@@ -7,6 +7,7 @@ import type { LspDiagnostic } from "./types";
 import { DiagnosticSeverity } from "./types";
 import { findProjectRoot } from "../shared/project";
 import { diagnostic as colorDiagnostic } from "../shared/colors";
+import type { DiagnosticDiff, TrackedDiagnostic, DiagnosticRegistry } from "./diagnostic-registry";
 
 /** 診断情報の収集結果 */
 export interface DiagnosticReport {
@@ -154,4 +155,107 @@ function getSeverityType(severity?: number): "error" | "warning" | "info" | "hin
     default:
       return "info";
   }
+}
+
+/**
+ * 診断重要度の絵文字を取得
+ */
+function severityEmoji(severity: number): string {
+  switch (severity) {
+    case 1: // Error
+      return "❌";
+    case 2: // Warning
+      return "⚠️";
+    case 3: // Information
+      return "ℹ️";
+    case 4: // Hint
+      return "ℹ️";
+    default:
+      return "❓";
+  }
+}
+
+/**
+ * DiagnosticDiff をLLM可読テキストにフォーマットする。
+ */
+export function formatDiagnosticDiff(diff: DiagnosticDiff): string {
+  const allActive = [...diff.active, ...diff.added];
+
+  // エラーと警告の件数をカウント
+  const errorCount = allActive.filter(d => d.severity === 1).length;
+  const warningCount = allActive.filter(d => d.severity === 2).length;
+
+  const output: string[] = [];
+
+  // サマリ行
+  if (errorCount === 0 && warningCount === 0) {
+    output.push("diagnostics: ok");
+  } else {
+    const parts: string[] = [];
+    if (errorCount > 0) {
+      parts.push(`❌ ${errorCount} error${errorCount > 1 ? "s" : ""}`);
+    }
+    if (warningCount > 0) {
+      parts.push(`⚠️ ${warningCount} warning${warningCount > 1 ? "s" : ""}`);
+    }
+    output.push(`diagnostics: ${parts.join(", ")}`);
+  }
+
+  // 個別診断行
+  if (allActive.length > 0) {
+    const MAX_DISPLAY = 10;
+    const toDisplay = allActive.slice(0, MAX_DISPLAY);
+
+    for (const diag of toDisplay) {
+      const emoji = severityEmoji(diag.severity);
+      const codeStr = diag.code ? `[${diag.code}] ` : "";
+      output.push(`  ${emoji} ${diag.id} ${codeStr}(line ${diag.line}): ${diag.message}`);
+    }
+
+    if (allActive.length > MAX_DISPLAY) {
+      output.push(`  ... and ${allActive.length - MAX_DISPLAY} more`);
+    }
+  }
+
+  // resolved セクション
+  if (diff.resolved.length > 0) {
+    output.push("");
+    output.push("resolved:");
+    for (const diag of diff.resolved) {
+      const codeStr = diag.code ? `[${diag.code}] ` : "";
+      output.push(`  ✅ ${diag.id} ${codeStr}(line ${diag.line}): ${diag.message}`);
+    }
+    output.push("");
+    const count = diff.resolved.length;
+    output.push(`${count} issue${count > 1 ? "s" : ""} resolved by this change.`);
+  }
+
+  return output.join("\n");
+}
+
+/**
+ * 診断情報を収集してID付与・差分検出・フォーマットを行う統合関数。
+ *
+ * @param lspManager - LSPマネージャインスタンス
+ * @param diagnosticRegistry - 診断レジストリ
+ * @param filePath - 対象ファイルの絶対パス
+ * @param content - ファイルの更新後の内容
+ * @returns フォーマット済みの診断テキスト
+ */
+export async function collectAndFormatWithTracking(
+  lspManager: LspManager,
+  diagnosticRegistry: DiagnosticRegistry,
+  filePath: string,
+  content: string
+): Promise<string> {
+  const report = await collectDiagnostics(lspManager, filePath, content);
+
+  if (!report) {
+    return "diagnostics: unavailable (no LSP for this file type)";
+  }
+
+  const diff = diagnosticRegistry.update(filePath, report.diagnostics);
+  diagnosticRegistry.save();
+
+  return formatDiagnosticDiff(diff);
 }

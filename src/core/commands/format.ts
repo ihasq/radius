@@ -13,7 +13,8 @@ import type { IpcResponse, ChangeMetadata } from "../../shared/types";
 import type { LspManager } from "../../lsp/manager";
 import { resolveLanguageId } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
-import { collectDiagnostics, formatDiagnostics } from "../../lsp/diagnostics";
+import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
+import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
 import { filepath } from "../../shared/colors";
 import type { LspTextEdit } from "../../lsp/types";
 
@@ -24,7 +25,8 @@ export async function handleFormat(
   args: Record<string, unknown>,
   lspManager: LspManager,
   historyTracker: HistoryTracker,
-  bufferManager: BufferManager
+  bufferManager: BufferManager,
+  diagnosticRegistry: DiagnosticRegistry
 ): Promise<IpcResponse> {
   const file = args.file as string | undefined;
 
@@ -102,14 +104,16 @@ export async function handleFormat(
     };
     await historyTracker.record(changeset);
 
-    // 診断情報を収集
+    // 診断情報を収集（ID付与・差分検出）
     client.changeDocument(uri, result.newContent);
     await new Promise(resolve => setTimeout(resolve, 300));
 
-    const diagnosticReport = await collectDiagnostics(lspManager, absPath, result.newContent);
-    const diagnosticsOutput = diagnosticReport
-      ? `\ndiagnostics:\n${formatDiagnostics(diagnosticReport)}`
-      : "\ndiagnostics: ok";
+    const diagnosticsOutput = await collectAndFormatWithTracking(
+      lspManager,
+      diagnosticRegistry,
+      absPath,
+      result.newContent
+    );
 
     client.closeDocument(uri);
 

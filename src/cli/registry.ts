@@ -504,6 +504,7 @@ options:
   --text <text>   Text to insert (required unless --stdin)
   --stdin         Read text from stdin (for multiline content)
   --tag <tag>     Session tag from previous command output
+  --reason <why>  Override conflict detection with explanation
 
 examples:
   radius insert src/api.ts --line 10 --text "// TODO: implement"
@@ -534,7 +535,7 @@ examples:
       const absFile = resolve(cwd, file);
       return {
         command: "insert",
-        args: { file: absFile, line: parsed.line, text },
+        args: { file: absFile, line: parsed.line, text, reason: parsed.reason },
       };
     },
   },

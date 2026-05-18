@@ -140,6 +140,12 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // A: コマンド固有の --help
+  if (args.slice(1).includes("--help") || args.slice(1).includes("-h")) {
+    console.log(cmdDef.help);
+    process.exit(0);
+  }
+
   // A: デーモン起動確認
   const running = await ensureDaemon();
   if (!running) {
@@ -202,7 +208,12 @@ async function main(): Promise<void> {
   if (response.tag) {
     console.log(muted("\n---"));
     console.log(muted(`radius-tag: ${response.tag}`));
-    console.log(muted(`[pass --tag ${response.tag} to your next radius command]`));
+    console.log(muted(`[include --tag ${response.tag} to maintain edit history]`));
+
+    // 初回タグの場合は追加のノートを表示
+    if (response.isFirstTag) {
+      console.log(muted("(This is your first command. Radius will track your edits and enable undo.)"));
+    }
   }
 }
 

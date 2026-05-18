@@ -12,7 +12,8 @@ import type { Changeset } from "../history/types";
 import type { IpcResponse } from "../../shared/types";
 import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
-import { collectDiagnostics, formatDiagnostics } from "../../lsp/diagnostics";
+import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
+import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
 import { filepath, added } from "../../shared/colors";
 
 /**
@@ -22,7 +23,8 @@ export async function handleInsert(
   args: Record<string, unknown>,
   lspManager: LspManager,
   historyTracker: HistoryTracker,
-  bufferManager: BufferManager
+  bufferManager: BufferManager,
+  diagnosticRegistry: DiagnosticRegistry
 ): Promise<IpcResponse> {
   const file = args.file as string | undefined;
   const line = args.line as string | number | undefined;
@@ -104,15 +106,17 @@ export async function handleInsert(
   const lines = newContent.split("\n");
   const context = generateInsertContext(lines, lineNum);
 
-  // LSP診断情報を収集
-  const diagnosticReport = await collectDiagnostics(lspManager, absPath, newContent);
-  const diagnosticsOutput = diagnosticReport
-    ? `\ndiagnostics:\n${formatDiagnostics(diagnosticReport)}`
-    : "";
+  // LSP診断情報を収集（ID付与・差分検出）
+  const diagnosticsOutput = await collectAndFormatWithTracking(
+    lspManager,
+    diagnosticRegistry,
+    absPath,
+    newContent
+  );
 
   return {
     ok: true,
-    data: `inserted at line ${lineNum} in ${filepath(absPath)}\n\n${context}${diagnosticsOutput}`,
+    data: `inserted at line ${lineNum} in ${filepath(absPath)}\n\n${context}\n${diagnosticsOutput}`,
   };
 }
 

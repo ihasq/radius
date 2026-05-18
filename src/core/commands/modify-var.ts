@@ -13,7 +13,8 @@ import type { Changeset, FileChange } from "../history/types";
 import type { LspWorkspaceEdit, LspTextEdit } from "../../lsp/types";
 import type { IpcResponse } from "../../shared/types";
 import type { BufferManager } from "../buffer/manager";
-import { collectDiagnostics, formatDiagnostics } from "../../lsp/diagnostics";
+import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
+import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
 import { filepath, added, muted, warning as colorWarning } from "../../shared/colors";
 
 /** リトライロジックの定数（read-varと同期） */
@@ -252,7 +253,8 @@ export async function handleModifyVar(
   args: Record<string, unknown>,
   lspManager: LspManager,
   historyTracker: HistoryTracker,
-  bufferManager: BufferManager
+  bufferManager: BufferManager,
+  diagnosticRegistry: DiagnosticRegistry
 ): Promise<IpcResponse> {
   const filePath = args.file as string | undefined;
   const fromName = args.from as string | undefined;
@@ -334,12 +336,17 @@ export async function handleModifyVar(
   // 出力フォーマット（A3: テキストフォールバック時の警告追加）
   const output = formatOutput(fromName, toName, engine, fileEdits);
 
-  // LSP診断情報を収集（全変更ファイル）
+  // LSP診断情報を収集（全変更ファイル、ID付与・差分検出）
   const diagnosticsOutputs: string[] = [];
   for (const change of fileChanges) {
-    const diagnosticReport = await collectDiagnostics(lspManager, change.filePath, change.after);
-    if (diagnosticReport && diagnosticReport.diagnostics.length > 0) {
-      diagnosticsOutputs.push(`\n${filepath(change.filePath)}:\n${formatDiagnostics(diagnosticReport)}`);
+    const diagnosticsOutput = await collectAndFormatWithTracking(
+      lspManager,
+      diagnosticRegistry,
+      change.filePath,
+      change.after
+    );
+    if (!diagnosticsOutput.includes("diagnostics: ok")) {
+      diagnosticsOutputs.push(`\n${filepath(change.filePath)}:\n${diagnosticsOutput}`);
     }
   }
 

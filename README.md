@@ -14,6 +14,7 @@ Radius is a daemon-based code editing system designed for AI coding agents. It p
 - **Undo/redo history**: Per-project change tracking with full file restoration
 - **Git integration**: Conflict resolution and diff viewing
 - **Import-aware file renaming**: Automatically update import statements across the project
+- **Diagnostic tracking**: Persistent diagnostic IDs (D-NNN) with resolution detection and emoji indicators
 - **Multi-agent support**: Tag-chain based agent identification with conflict detection and resolution
 - **Session management**: Dog tag-based conversation tracking with automatic rewind detection
 - **VSCode extension support**: Install extensions from Open VSX registry for language support
@@ -147,6 +148,27 @@ radius fix <file> --list                # List available code actions
 radius fix <file> [--line N] [--id N]   # Apply code action
 radius format <file>                    # Apply LSP formatting
 ```
+
+#### Diagnostic Tracking
+
+All write commands (str-replace, insert, create, etc.) automatically track diagnostics:
+
+```
+diagnostics: ❌ 2 errors, ⚠️ 1 warning
+  ❌ D-001 [2322] (line 5): Type 'string' is not assignable to type 'number'
+  ❌ D-002 [2322] (line 10): Property 'x' does not exist on type 'Foo'
+  ⚠️ D-003 [6133] (line 3): 'unused' is declared but never used
+
+resolved:
+  ✅ D-004 [2322] (line 8): Type error was fixed
+1 issue resolved by this change.
+```
+
+Features:
+- **Persistent IDs**: Each diagnostic gets a unique D-NNN ID that persists across edits
+- **Emoji indicators**: ❌ Error, ⚠️ Warning, ℹ️ Info/Hint, ✅ Resolved
+- **Resolution detection**: Tracks which diagnostics were fixed by each edit
+- **Project-scoped**: IDs are unique per project and survive daemon restarts
 
 #### LLM-readable views (Phase 18)
 ```bash
