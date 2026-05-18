@@ -120,19 +120,15 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - name: Build radiusd-core binary
-        run: bun build --compile --target=bun-linux-x64 src/daemon/main.ts --outfile dist/radiusd-core
-      - name: Prepare radiusd shell script
-        run: |
-          cp scripts/radiusd.sh radiusd
-          chmod +x radiusd
+      - name: Build radiusd binary
+        run: bash scripts/build.sh
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: radiusd-build
           path: |
-            radiusd
-            dist/radiusd-core
+            dist/
+            scripts/radiusd.sh
 
   test-update-e2e:
     needs: build
@@ -147,10 +143,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: radiusd-build
-      - name: Set permissions
+      - name: Setup radiusd for test
         run: |
+          cp scripts/radiusd.sh radiusd
           chmod +x radiusd
-          chmod +x dist/radiusd-core
       - run: bun test --timeout 60000 tests/update-e2e.test.ts
         env:
           FORCE_COLOR: "0"
