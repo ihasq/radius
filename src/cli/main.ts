@@ -209,7 +209,7 @@ async function main(): Promise<void> {
   // A: タグ出力
   if (response.tag) {
     console.log(muted("\n---"));
-    console.log(muted(`radius-tag: ${response.tag}`));
+    console.log(`radius-tag: ${response.tag}`);
     console.log(muted(`[include --tag ${response.tag} to maintain edit history]`));
 
     // 初回タグの場合は追加のノートを表示

@@ -211,7 +211,7 @@ async function runCliMode(): Promise<void> {
   // タグ出力
   if (response.tag) {
     console.log(muted("\n---"));
-    console.log(muted(`radius-tag: ${response.tag}`));
+    console.log(`radius-tag: ${response.tag}`);
     console.log(muted(`[pass --tag ${response.tag} to your next radius command]`));
   }
 }
