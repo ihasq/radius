@@ -3,8 +3,14 @@ node_modules
 
 # output
 out
-dist
 *.tgz
+
+# ビルド成果物
+radiusd
+dist/
+
+# 手動テスト用ディレクトリ（Phase 14 で tests/fixtures/ に移行済み）
+test-*/
 
 # code coverage
 coverage
