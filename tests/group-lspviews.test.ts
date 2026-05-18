@@ -199,7 +199,10 @@ describe("typehierarchy", () => {
 describe("diff", () => {
   test("diff shows unstaged changes", async () => {
     // git リポジトリを初期化
-    execSync("git init && git add -A && git commit -m 'init'", { cwd: tmpDir, stdio: "ignore" });
+    execSync(
+      "git init && git config user.email 'test@test.com' && git config user.name 'test' && git add -A && git commit -m 'init'",
+      { cwd: tmpDir, stdio: "ignore" }
+    );
 
     // ファイルを変更
     const filePath = join(tmpDir, "src/main.ts");
@@ -227,7 +230,10 @@ export function greet(): string {
 
   test("diff --ref shows changes against specific commit", async () => {
     // git リポジトリを初期化
-    execSync("git init && git add -A && git commit -m 'init'", { cwd: tmpDir, stdio: "ignore" });
+    execSync(
+      "git init && git config user.email 'test@test.com' && git config user.name 'test' && git add -A && git commit -m 'init'",
+      { cwd: tmpDir, stdio: "ignore" }
+    );
 
     // ファイルを変更してコミット
     const filePath = join(tmpDir, "src/main.ts");
@@ -243,7 +249,10 @@ export function greet(): string {
 
   test("diff shows no changes for clean file", async () => {
     // git リポジトリを初期化
-    execSync("git init && git add -A && git commit -m 'init'", { cwd: tmpDir, stdio: "ignore" });
+    execSync(
+      "git init && git config user.email 'test@test.com' && git config user.name 'test' && git add -A && git commit -m 'init'",
+      { cwd: tmpDir, stdio: "ignore" }
+    );
 
     const filePath = join(tmpDir, "src/main.ts");
 
