@@ -15,7 +15,8 @@ import { resolveLanguageId } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
 import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
-import { filepath, marker as colorMarker } from "../../shared/colors";
+import { filepath } from "../../shared/colors";
+import { formatContext, errorResponse } from "../../shared/output";
 import type { LspCodeAction, LspRange, LspTextEdit, LspWorkspaceEdit } from "../../lsp/types";
 
 /**
@@ -34,13 +35,13 @@ export async function handleFix(
   const id = args.id as string | undefined;
 
   if (!file) {
-    return { ok: false, error: "Missing required arg: file" };
+    return errorResponse("Missing required arg: file");
   }
 
   const absPath = resolve(file);
 
   if (!existsSync(absPath)) {
-    return { ok: false, error: `File not found: ${absPath}` };
+    return errorResponse(`File not found: ${absPath}`);
   }
 
   const projectRoot = findProjectRoot(absPath);
@@ -57,10 +58,7 @@ export async function handleFix(
   try {
     content = bufferManager.getContent(absPath);
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to read file: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   const lines = content.split("\n");
@@ -134,7 +132,7 @@ export async function handleFix(
       const idx = parseInt(id, 10) - 1;
       if (idx < 0 || idx >= actions.length) {
         client.closeDocument(uri);
-        return { ok: false, error: `Invalid action id: ${id}` };
+        return errorResponse(`Invalid action id: ${id}`);
       }
       selectedAction = actions[idx];
     } else {
@@ -160,7 +158,7 @@ export async function handleFix(
 
       if (!editResult.ok) {
         client.closeDocument(uri);
-        return { ok: false, error: editResult.error! };
+        return errorResponse(editResult.error!);
       }
 
       changeMetadata = editResult.metadata ?? null;
@@ -173,7 +171,7 @@ export async function handleFix(
         );
       } catch (err) {
         client.closeDocument(uri);
-        return { ok: false, error: `Failed to execute command: ${err}` };
+        return errorResponse(`Failed to execute command: ${err}`);
       }
     }
 
@@ -213,7 +211,9 @@ export async function handleFix(
 
     // 出力
     const relativePath = relative(projectRoot, absPath);
-    const context = generateChangeContext(newContent, changeMetadata);
+    const context = changeMetadata
+      ? formatContext({ lines: newContent.split("\n"), highlightLines: [changeMetadata.startLine - 1] })
+      : "";
 
     return {
       ok: true,
@@ -318,27 +318,4 @@ function getOffset(lines: string[], line: number, character: number): number {
   return offset;
 }
 
-/**
- * 変更コンテキストを生成する。
- */
-function generateChangeContext(content: string, metadata: ChangeMetadata | null): string {
-  if (!metadata) {
-    return "";
-  }
-
-  const lines = content.split("\n");
-  const changeLine = metadata.startLine - 1;
-  const startLine = Math.max(0, changeLine - 1);
-  const endLine = Math.min(lines.length - 1, changeLine + 3);
-
-  const output: string[] = [];
-  for (let i = startLine; i <= endLine; i++) {
-    const lineNum = String(i + 1).padStart(4, " ");
-    const marker = i === changeLine ? ">" : " ";
-    const line = `${marker}${lineNum}: ${lines[i]}`;
-    output.push(i === changeLine ? colorMarker(line) : line);
-  }
-
-  return output.join("\n");
-}
 

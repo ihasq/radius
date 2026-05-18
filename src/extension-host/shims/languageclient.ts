@@ -6,7 +6,6 @@
  * ServerOptions を捕捉する。
  */
 
-import type { Disposable } from "./vscode";
 
 // ========================================
 // 型定義
@@ -116,7 +115,6 @@ export function setOnServerCaptured(callback: OnServerCapturedCallback): void {
 
 export class LanguageClient {
   private id: string;
-  private name: string;
   private serverOptions: ServerOptions;
   private clientOptions: LanguageClientOptions;
   private capturedInfo: CapturedServerInfo | null = null;
@@ -137,13 +135,11 @@ export class LanguageClient {
     if (typeof nameOrServerOptions === "string") {
       // 4引数形式
       this.id = id;
-      this.name = nameOrServerOptions;
       this.serverOptions = serverOptionsOrClientOptions as ServerOptions;
       this.clientOptions = clientOptions || {};
     } else {
       // 3引数形式
       this.id = id;
-      this.name = id;
       this.serverOptions = nameOrServerOptions;
       this.clientOptions = serverOptionsOrClientOptions as LanguageClientOptions;
     }

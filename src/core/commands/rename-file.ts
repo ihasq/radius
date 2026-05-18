@@ -9,13 +9,12 @@ import { resolve, dirname } from "node:path";
 import { findImportsTo, type ImportEntry } from "../imports/scanner";
 import { rewriteImports, calculateNewSpecifier } from "../imports/rewriter";
 import { findProjectRoot } from "../../shared/project";
-import { LspManager } from "../../lsp/manager";
-import type { HistoryTracker } from "../history/tracker";
 import type { Changeset, FileChange } from "../history/types";
 import type { IpcRequest, IpcResponse } from "../../shared/types";
 import type { DaemonContext } from "../../daemon/registry";
 import { filepath, muted } from "../../shared/colors";
 import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
+import { errorResponse } from "../../shared/output";
 
 /**
  * rename-file コマンドのエントリポイント。
@@ -29,7 +28,7 @@ export async function handleRenameFile(
   const newPath = args.to as string | undefined;
 
   if (!oldPath || !newPath) {
-    return { ok: false, error: "Missing required args: file, to" };
+    return errorResponse("Missing required args: file, to");
   }
 
   const oldAbsPath = resolve(oldPath);
@@ -37,7 +36,7 @@ export async function handleRenameFile(
 
   // 1. oldPath の存在確認
   if (!existsSync(oldAbsPath)) {
-    return { ok: false, error: `File not found: ${oldAbsPath}` };
+    return errorResponse(`File not found: ${oldAbsPath}`);
   }
 
   // 2. newPath の親ディレクトリを作成
@@ -45,15 +44,12 @@ export async function handleRenameFile(
   try {
     mkdirSync(newDir, { recursive: true });
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to create directory: ${newDir}`,
-    };
+    return errorResponse(`Failed to create directory: ${newDir}`);
   }
 
   // 3. newPath が既に存在する場合はエラー
   if (existsSync(newAbsPath)) {
-    return { ok: false, error: `Destination already exists: ${newAbsPath}` };
+    return errorResponse(`Destination already exists: ${newAbsPath}`);
   }
 
   // 4. プロジェクトルート取得
@@ -85,10 +81,7 @@ export async function handleRenameFile(
   try {
     renameSync(oldAbsPath, newAbsPath);
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to rename file: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to rename file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // 8. 各参照元ファイルの import 指定子を書き換え
@@ -341,14 +334,4 @@ function formatOutput(
   lines.push(diagnosticsOutput);
 
   return lines.join("\n");
-}
-
-// scanner.ts の関数をエクスポート（extractSelfImportsで使用）
-async function resolveModuleSpecifier(
-  specifier: string,
-  fromFile: string,
-  projectRoot: string
-): Promise<string | null> {
-  const { resolveModuleSpecifier: resolve } = await import("../imports/scanner");
-  return resolve(specifier, fromFile, projectRoot);
 }

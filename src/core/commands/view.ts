@@ -8,6 +8,7 @@ import { existsSync, statSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import type { IpcResponse } from "../../shared/types";
 import type { BufferManager } from "../buffer/manager";
+import { errorResponse } from "../../shared/output";
 
 /**
  * view コマンドハンドラ。
@@ -20,13 +21,13 @@ export async function handleView(
   const range = args.range as string | undefined;
 
   if (!path) {
-    return { ok: false, error: "Missing required arg: path" };
+    return errorResponse("Missing required arg: path");
   }
 
   const absPath = resolve(path);
 
   if (!existsSync(absPath)) {
-    return { ok: false, error: `Path not found: ${absPath}` };
+    return errorResponse(`Path not found: ${absPath}`);
   }
 
   const stat = statSync(absPath);
@@ -38,10 +39,7 @@ export async function handleView(
       const output = entries.join("\n");
       return { ok: true, data: output };
     } catch (err) {
-      return {
-        ok: false,
-        error: `Failed to read directory: ${err instanceof Error ? err.message : String(err)}`,
-      };
+      return errorResponse(`Failed to read directory: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -56,16 +54,13 @@ export async function handleView(
     if (range) {
       const match = /^(\d+):(\d+)$/.exec(range);
       if (!match) {
-        return { ok: false, error: "Invalid range format. Use: <start>:<end>" };
+        return errorResponse("Invalid range format. Use: <start>:<end>");
       }
       startLine = parseInt(match[1], 10);
       endLine = parseInt(match[2], 10);
 
       if (startLine < 1 || endLine > lineCount || startLine > endLine) {
-        return {
-          ok: false,
-          error: `Invalid range: ${startLine}:${endLine} (file has ${lineCount} lines)`,
-        };
+        return errorResponse(`Invalid range: ${startLine}:${endLine} (file has ${lineCount} lines)`);
       }
     }
 
@@ -107,9 +102,6 @@ export async function handleView(
 
     return { ok: true, data: output.join("\n") };
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to read file: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
   }
 }

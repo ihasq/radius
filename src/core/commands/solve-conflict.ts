@@ -8,13 +8,13 @@ import { resolve } from "node:path";
 import { parseConflicts, type ConflictRegion } from "../conflict/parser";
 import { LspManager } from "../../lsp/manager";
 import { HistoryTracker } from "../history/tracker";
-import { findProjectRoot } from "../../shared/project";
 import type { Changeset } from "../history/types";
 import type { IpcResponse } from "../../shared/types";
 import type { BufferManager } from "../buffer/manager";
 import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
 import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
 import { filepath, removed, added } from "../../shared/colors";
+import { errorResponse } from "../../shared/output";
 
 /**
  * solve-conflict コマンドのエントリポイント。
@@ -28,7 +28,7 @@ export async function handleSolveConflict(
 ): Promise<IpcResponse> {
   const filePath = args.file as string | undefined;
   if (!filePath) {
-    return { ok: false, error: "Missing required arg: file" };
+    return errorResponse("Missing required arg: file");
   }
 
   const absPath = resolve(filePath);
@@ -38,7 +38,7 @@ export async function handleSolveConflict(
   try {
     content = bufferManager.getContent(absPath);
   } catch {
-    return { ok: false, error: `Cannot read file: ${absPath}` };
+    return errorResponse(`Cannot read file: ${absPath}`);
   }
 
   // コンフリクトパース
@@ -56,27 +56,27 @@ export async function handleSolveConflict(
 
   // 引数検証
   if (customContent && conflictId === undefined) {
-    return { ok: false, error: "--content requires --id" };
+    return errorResponse("--content requires --id");
   }
 
   if (customContent && accept) {
-    return { ok: false, error: "--content and --accept are mutually exclusive" };
+    return errorResponse("--content and --accept are mutually exclusive");
   }
 
   if (!customContent && !accept) {
-    return { ok: false, error: "Must specify --accept or --content" };
+    return errorResponse("Must specify --accept or --content");
   }
 
   // コンフリクトがない場合
   if (parseResult.conflictCount === 0) {
-    return { ok: false, error: "No conflicts found in file" };
+    return errorResponse("No conflicts found in file");
   }
 
   // 個別解決時のID検証
   if (conflictId !== undefined) {
     const found = parseResult.conflicts.find((c) => c.id === conflictId);
     if (!found) {
-      return { ok: false, error: `Conflict ID ${conflictId} not found` };
+      return errorResponse(`Conflict ID ${conflictId} not found`);
     }
   }
 

@@ -193,7 +193,7 @@ options:
 
 examples:
   radius undo --tag abc1-XXXXXXXX`,
-    buildRequest: (args, cwd, _stdin) => {
+    buildRequest: (_args, cwd, _stdin) => {
       return { command: "undo", args: { cwd } };
     },
   },
@@ -210,7 +210,7 @@ options:
 
 examples:
   radius redo --tag abc1-XXXXXXXX`,
-    buildRequest: (args, cwd, _stdin) => {
+    buildRequest: (_args, cwd, _stdin) => {
       return { command: "redo", args: { cwd } };
     },
   },
@@ -876,7 +876,7 @@ your edits. Use accept-change or challenge-change to respond.
 
 examples:
   radius list-notifications --tag abc1-XXXXXXXX`,
-    buildRequest: (args, cwd, _stdin) => {
+    buildRequest: (_args, cwd, _stdin) => {
       return {
         command: "list-notifications",
         args: {
@@ -1246,7 +1246,7 @@ examples:
   radius task list
   radius task run build
   radius task run test`,
-    buildRequest: (args, cwd, _stdin) => {
+    buildRequest: (args, _cwd, _stdin) => {
       const subcommand = args[0];
       if (!subcommand || (subcommand !== "list" && subcommand !== "run")) {
         throw "usage: radius task <list|run> [name]";

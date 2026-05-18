@@ -10,6 +10,7 @@ import type { IpcRequest, IpcResponse } from "../../shared/types";
 import { searchInContent, type SearchOptions } from "../search/engine";
 import { findFiles } from "../search/glob";
 import { marker } from "../../shared/colors";
+import { errorResponse } from "../../shared/output";
 
 export async function handleGrep(request: IpcRequest): Promise<IpcResponse> {
   const { args, cwd } = request;
@@ -22,15 +23,15 @@ export async function handleGrep(request: IpcRequest): Promise<IpcResponse> {
 
   // 引数検証
   if (!target) {
-    return { ok: false, error: "missing argument: <file-or-dir>" };
+    return errorResponse("missing argument: <file-or-dir>");
   }
 
   if (!pattern) {
-    return { ok: false, error: "missing required option: --pattern" };
+    return errorResponse("missing required option: --pattern");
   }
 
   if (!existsSync(target)) {
-    return { ok: false, error: `file or directory not found: ${target}` };
+    return errorResponse(`file or directory not found: ${target}`);
   }
 
   // 検索オプション構築
@@ -44,7 +45,7 @@ export async function handleGrep(request: IpcRequest): Promise<IpcResponse> {
   try {
     new RegExp(searchOpts.isRegex ? pattern : pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   } catch (err) {
-    return { ok: false, error: `invalid regex pattern: ${(err as Error).message}` };
+    return errorResponse(`invalid regex pattern: ${(err as Error).message}`);
   }
 
   const stat = statSync(target);
@@ -55,7 +56,7 @@ export async function handleGrep(request: IpcRequest): Promise<IpcResponse> {
   } else if (stat.isDirectory()) {
     filesToSearch = findFiles(target, {});
   } else {
-    return { ok: false, error: "target is not a file or directory" };
+    return errorResponse("target is not a file or directory");
   }
 
   // 検索実行

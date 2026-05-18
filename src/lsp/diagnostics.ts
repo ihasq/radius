@@ -7,7 +7,7 @@ import type { LspDiagnostic } from "./types";
 import { DiagnosticSeverity } from "./types";
 import { findProjectRoot } from "../shared/project";
 import { diagnostic as colorDiagnostic } from "../shared/colors";
-import type { DiagnosticDiff, TrackedDiagnostic, DiagnosticRegistry } from "./diagnostic-registry";
+import type { DiagnosticDiff, DiagnosticRegistry } from "./diagnostic-registry";
 
 /** 診断情報の収集結果 */
 export interface DiagnosticReport {

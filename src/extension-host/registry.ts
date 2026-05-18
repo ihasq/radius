@@ -5,7 +5,7 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
-import { join, resolve, basename, extname } from "node:path";
+import { join, resolve, extname } from "node:path";
 import { homedir } from "node:os";
 import AdmZip from "adm-zip";
 import { scanExtension } from "./scanner";

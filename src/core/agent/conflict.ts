@@ -9,7 +9,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { randomBytes } from "node:crypto";
 import { projectHash } from "../../shared/paths";
-import type { Conflict, PendingNotification, ConflictCheck, LedgerEntry, ChallengeEntry } from "./types";
+import type { Conflict, PendingNotification, ConflictCheck, ChallengeEntry } from "./types";
 import type { ChangeLedger } from "./ledger";
 
 export class ConflictManager {
@@ -49,7 +49,7 @@ export class ConflictManager {
     filePath: string,
     startLine: number,
     endLine: number,
-    newEndLine: number,
+    _newEndLine: number,
     withinMinutes: number = 30
   ): Promise<ConflictCheck | null> {
     await this.init();
@@ -66,8 +66,7 @@ export class ConflictManager {
       return null;
     }
 
-    // 重複箇所の内容を取得（最新のエントリから）
-    const latestOverlap = overlaps[0];
+    // 重複箇所の内容を取得
     let overlapContent: string | undefined;
 
     try {

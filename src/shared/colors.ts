@@ -1,18 +1,18 @@
 /**
- * Koloristを使用した行単位のカラーリングユーティリティ。
+ * ANSI エスケープコードを使用した行単位のカラーリングユーティリティ。
  *
  * NO_COLOR または RADIUS_NO_COLOR が設定されている場合、
  * 全関数がカラーコードを付与せずにそのまま返す。
  */
 
-import {
-  green as koloristGreen,
-  red as koloristRed,
-  yellow as koloristYellow,
-  blue as koloristBlue,
-  cyan as koloristCyan,
-  dim as koloristDim,
-} from "kolorist";
+// ANSI カラーコード
+const RESET = "\x1b[0m";
+const GREEN = "\x1b[32m";
+const RED = "\x1b[31m";
+const YELLOW = "\x1b[33m";
+const BLUE = "\x1b[34m";
+const CYAN = "\x1b[36m";
+const DIM = "\x1b[2m";
 
 /**
  * カラー出力が無効化されているか判定する。
@@ -39,7 +39,7 @@ function isColorDisabled(): boolean {
  */
 export function added(line: string): string {
   if (isColorDisabled()) return line;
-  return koloristGreen(line);
+  return `${GREEN}${line}${RESET}`;
 }
 
 /**
@@ -47,7 +47,7 @@ export function added(line: string): string {
  */
 export function removed(line: string): string {
   if (isColorDisabled()) return line;
-  return koloristRed(line);
+  return `${RED}${line}${RESET}`;
 }
 
 /**
@@ -55,7 +55,7 @@ export function removed(line: string): string {
  */
 export function marker(line: string): string {
   if (isColorDisabled()) return line;
-  return koloristYellow(line);
+  return `${YELLOW}${line}${RESET}`;
 }
 
 /**
@@ -69,13 +69,13 @@ export function diagnostic(
 
   switch (severity) {
     case "error":
-      return koloristRed(line);
+      return `${RED}${line}${RESET}`;
     case "warning":
-      return koloristYellow(line);
+      return `${YELLOW}${line}${RESET}`;
     case "info":
-      return koloristBlue(line);
+      return `${BLUE}${line}${RESET}`;
     case "hint":
-      return koloristDim(line);
+      return `${DIM}${line}${RESET}`;
     default:
       return line;
   }
@@ -86,7 +86,7 @@ export function diagnostic(
  */
 export function warning(line: string): string {
   if (isColorDisabled()) return line;
-  return koloristYellow(line);
+  return `${YELLOW}${line}${RESET}`;
 }
 
 /**
@@ -94,7 +94,7 @@ export function warning(line: string): string {
  */
 export function filepath(line: string): string {
   if (isColorDisabled()) return line;
-  return koloristCyan(line);
+  return `${CYAN}${line}${RESET}`;
 }
 
 /**
@@ -102,5 +102,5 @@ export function filepath(line: string): string {
  */
 export function muted(line: string): string {
   if (isColorDisabled()) return line;
-  return koloristDim(line);
+  return `${DIM}${line}${RESET}`;
 }

@@ -5,7 +5,7 @@
  */
 
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
-import { resolve, dirname, join, relative, extname } from "node:path";
+import { resolve, dirname, join, extname } from "node:path";
 
 /** import エントリ。 */
 export interface ImportEntry {
@@ -168,7 +168,7 @@ function extractImports(filePath: string, projectRoot: string): ImportEntry[] {
 export function resolveModuleSpecifier(
   specifier: string,
   fromFile: string,
-  projectRoot: string
+  _projectRoot: string
 ): string | null {
   const fromDir = dirname(fromFile);
   const basePath = resolve(fromDir, specifier);

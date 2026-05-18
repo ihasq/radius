@@ -2,8 +2,6 @@
  * プロジェクトルート単位でLSPクライアントのライフサイクルを管理する。
  */
 
-import { resolve } from "node:path";
-import { existsSync } from "node:fs";
 import { LspClient } from "./client";
 import type { ExtensionLoader } from "../extension-host/loader";
 

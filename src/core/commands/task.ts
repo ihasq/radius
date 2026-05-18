@@ -5,10 +5,11 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { resolve, join, dirname } from "node:path";
+import { join } from "node:path";
 import { execSync } from "node:child_process";
 import { findProjectRoot } from "../../shared/project";
 import type { IpcResponse } from "../../shared/types";
+import { errorResponse } from "../../shared/output";
 
 /** VS Code タスク定義。 */
 interface VSCodeTask {
@@ -39,11 +40,11 @@ export async function handleTask(
 
   // サブコマンドの検証
   if (!subcommand) {
-    return { ok: false, error: "Missing subcommand: list or run" };
+    return errorResponse("Missing subcommand: list or run");
   }
 
   if (subcommand !== "list" && subcommand !== "run") {
-    return { ok: false, error: `Unknown subcommand: ${subcommand}` };
+    return errorResponse(`Unknown subcommand: ${subcommand}`);
   }
 
   const projectRoot = findProjectRoot(cwd);
@@ -54,7 +55,7 @@ export async function handleTask(
     if (subcommand === "list") {
       return { ok: true, data: "no tasks defined (no .vscode/tasks.json found)" };
     }
-    return { ok: false, error: "no tasks.json found in .vscode directory" };
+    return errorResponse("no tasks.json found in .vscode directory");
   }
 
   // tasks.json を読み込み
@@ -63,10 +64,7 @@ export async function handleTask(
     const content = readFileSync(tasksJsonPath, "utf-8");
     tasksConfig = JSON.parse(content);
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to parse tasks.json: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to parse tasks.json: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   const tasks = tasksConfig.tasks || [];
@@ -77,12 +75,12 @@ export async function handleTask(
 
   if (subcommand === "run") {
     if (!name) {
-      return { ok: false, error: "Missing task name for 'run' subcommand" };
+      return errorResponse("Missing task name for 'run' subcommand");
     }
     return handleTaskRun(tasks, name, projectRoot);
   }
 
-  return { ok: false, error: `Unknown subcommand: ${subcommand}` };
+  return errorResponse(`Unknown subcommand: ${subcommand}`);
 }
 
 /**
@@ -111,7 +109,7 @@ function handleTaskRun(tasks: VSCodeTask[], name: string, projectRoot: string): 
   const task = tasks.find((t) => t.label === name);
 
   if (!task) {
-    return { ok: false, error: `task not found: ${name}` };
+    return errorResponse(`task not found: ${name}`);
   }
 
   // コマンドを構築
@@ -133,11 +131,11 @@ function handleTaskRun(tasks: VSCodeTask[], name: string, projectRoot: string): 
       command += " " + task.args.join(" ");
     }
   } else {
-    return { ok: false, error: `Unsupported task type: ${task.type}` };
+    return errorResponse(`Unsupported task type: ${task.type}`);
   }
 
   if (!command.trim()) {
-    return { ok: false, error: `Task '${name}' has no command defined` };
+    return errorResponse(`Task '${name}' has no command defined`);
   }
 
   // タスクを実行
@@ -164,10 +162,7 @@ function handleTaskRun(tasks: VSCodeTask[], name: string, projectRoot: string): 
     const stderr = execError.stderr || "";
     const output = stdout + stderr;
 
-    return {
-      ok: false,
-      error: `Task '${name}' failed: ${output || execError.message}`,
-    };
+    return errorResponse(`Task '${name}' failed: ${output || execError.message}`);
   }
 }
 

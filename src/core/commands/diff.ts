@@ -10,6 +10,7 @@ import { spawnSync } from "node:child_process";
 import { findProjectRoot } from "../../shared/project";
 import type { IpcResponse } from "../../shared/types";
 import { added, removed } from "../../shared/colors";
+import { errorResponse } from "../../shared/output";
 
 /**
  * diff コマンドハンドラ。
@@ -21,13 +22,13 @@ export async function handleDiff(
   const ref = args.ref as string | undefined;
 
   if (!file) {
-    return { ok: false, error: "Missing required arg: file" };
+    return errorResponse("Missing required arg: file");
   }
 
   const absPath = resolve(file);
 
   if (!existsSync(absPath)) {
-    return { ok: false, error: `File not found: ${absPath}` };
+    return errorResponse(`File not found: ${absPath}`);
   }
 
   const projectRoot = findProjectRoot(absPath);
@@ -56,7 +57,7 @@ export async function handleDiff(
   });
 
   if (result.status !== 0 && result.stderr) {
-    return { ok: false, error: `git error: ${result.stderr}` };
+    return errorResponse(`git error: ${result.stderr}`);
   }
 
   const diffOutput = result.stdout.trim();

@@ -14,6 +14,9 @@ import {
 /** Phase 10 Part B: LRUキャッシュの上限 */
 const MAX_OPEN_BUFFERS = 50;
 
+/** statSync スキップの閾値（ms） */
+const STAT_CHECK_INTERVAL_MS = 1000;
+
 /** バッファエントリ（Phase 10 Part A: mtime追跡） */
 interface BufferEntry {
   buffer: PieceTreeBase;
@@ -23,6 +26,8 @@ interface BufferEntry {
   lastFlushMs: number;
   /** 未flushの変更があるか（Phase 10 Part B: LRU用） */
   dirty: boolean;
+  /** 最終 statSync チェック時刻 */
+  lastCheckedMs: number;
 }
 
 /**
@@ -53,11 +58,18 @@ export class BufferManager {
         return entry.buffer;
       }
 
+      // 最後のチェックから1秒以内であれば statSync をスキップ
+      const now = Date.now();
+      if (now - entry.lastCheckedMs < STAT_CHECK_INTERVAL_MS) {
+        return entry.buffer;
+      }
+
       // dirty でない場合のみ mtime チェック
       // ただし、ファイルが存在しない場合はチェックをスキップ
       if (existsSync(filePath)) {
         try {
           const diskMtime = statSync(filePath).mtimeMs;
+          entry.lastCheckedMs = now;
           if (diskMtime > entry.lastFlushMs) {
             // 外部変更を検知。バッファを再構築する。
             console.log(`[buffer] external change detected: ${filePath}`);
@@ -115,6 +127,7 @@ export class BufferManager {
       mtimeMs,
       lastFlushMs: mtimeMs,
       dirty: false,
+      lastCheckedMs: Date.now(),
     });
 
     return buffer;

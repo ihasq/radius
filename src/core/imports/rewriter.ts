@@ -67,7 +67,7 @@ export function rewriteImports(
  */
 export function calculateNewSpecifier(
   fromFile: string,
-  oldTargetPath: string,
+  _oldTargetPath: string,
   newTargetPath: string,
   oldSpecifier: string
 ): string {

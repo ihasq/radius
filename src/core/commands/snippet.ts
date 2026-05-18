@@ -14,6 +14,7 @@ import type { BufferManager } from "../buffer/manager";
 import type { Changeset } from "../history/types";
 import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
 import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
+import { errorResponse } from "../../shared/output";
 
 /** スニペット定義。 */
 interface Snippet {
@@ -121,21 +122,21 @@ export async function handleSnippet(
   const lineArg = args.line as string | number | undefined;
 
   if (!file) {
-    return { ok: false, error: "Missing required arg: file" };
+    return errorResponse("Missing required arg: file");
   }
 
   if (!name) {
-    return { ok: false, error: "Missing required arg: --name" };
+    return errorResponse("Missing required arg: --name");
   }
 
   if (!lineArg) {
-    return { ok: false, error: "Missing required arg: --line" };
+    return errorResponse("Missing required arg: --line");
   }
 
   const absPath = resolve(file);
 
   if (!existsSync(absPath)) {
-    return { ok: false, error: `File not found: ${absPath}` };
+    return errorResponse(`File not found: ${absPath}`);
   }
 
   const projectRoot = findProjectRoot(absPath);
@@ -146,10 +147,7 @@ export async function handleSnippet(
   try {
     content = bufferManager.getContent(absPath);
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to read file: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // 言語を特定
@@ -160,12 +158,12 @@ export async function handleSnippet(
   const snippet = snippets.find((s) => s.name === name || s.prefix === name);
 
   if (!snippet) {
-    return { ok: false, error: `snippet not found: ${name}` };
+    return errorResponse(`snippet not found: ${name}`);
   }
 
   const lineNumber = typeof lineArg === "number" ? lineArg : parseInt(lineArg as string, 10);
   if (isNaN(lineNumber)) {
-    return { ok: false, error: "Invalid line number" };
+    return errorResponse("Invalid line number");
   }
 
   const lines = content.split("\n");

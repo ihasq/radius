@@ -11,6 +11,7 @@ import type { IpcResponse } from "../../shared/types";
 import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import { DiagnosticSeverity, type LspDiagnostic } from "../../lsp/types";
+import { errorResponse } from "../../shared/output";
 
 const MAX_FILES = 50;
 
@@ -30,7 +31,7 @@ export async function handleProblems(
   const projectRoot = findProjectRoot(targetPath);
 
   if (!existsSync(targetPath)) {
-    return { ok: false, error: `Path not found: ${targetPath}` };
+    return errorResponse(`Path not found: ${targetPath}`);
   }
 
   const stat = statSync(targetPath);
@@ -41,7 +42,7 @@ export async function handleProblems(
   } else if (stat.isDirectory()) {
     files = collectFiles(targetPath, MAX_FILES);
   } else {
-    return { ok: false, error: `Invalid path: ${targetPath}` };
+    return errorResponse(`Invalid path: ${targetPath}`);
   }
 
   // 診断情報を収集

@@ -7,7 +7,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { resolve, dirname, extname, join } from "node:path";
+import { extname, join } from "node:path";
 import { homedir } from "node:os";
 import type { ExtensionRegistry } from "./registry";
 import type { LspManager } from "../lsp/manager";
@@ -78,7 +78,7 @@ export class ExtensionLoader {
 
   constructor(
     private registry: ExtensionRegistry,
-    private lspManager: LspManager
+    _lspManager: LspManager
   ) {
     // LanguageClient シムにコールバックを設定
     languageclientShim.setOnServerCaptured((info) => {
@@ -253,7 +253,7 @@ export class ExtensionLoader {
    * require("vscode") と require("vscode-languageclient") をシムに差し替える。
    * スコ���プ制御: 拡張ディレクトリからの require のみ差し替える。
    */
-  private setupModuleInterception(ext: ResolvedExtension): void {
+  private setupModuleInterception(_ext: ResolvedExtension): void {
     const Module = require("module");
 
     // フックが既に設定済みの場合はスキップ

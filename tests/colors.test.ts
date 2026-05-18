@@ -1,5 +1,5 @@
 /**
- * Part E: Kolorist カラー出力テスト
+ * Part E: ANSI カラー出力テスト
  */
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
@@ -44,7 +44,7 @@ describe("colors", () => {
       const result = added("text");
       expect(result).toContain("\x1b[32m"); // 緑の開始コード
       expect(result).toContain("text");
-      expect(result).toContain("\x1b[39m"); // リセットコード
+      expect(result).toContain("\x1b[0m"); // リセットコード
 
       // クリーンアップ
       delete process.env.FORCE_COLOR;

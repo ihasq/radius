@@ -8,6 +8,7 @@ import type { ExtensionRegistry } from "../../extension-host/registry";
 import type { ExtensionLoader } from "../../extension-host/loader";
 import type { IpcResponse } from "../../shared/types";
 import { downloadAndInstall } from "../../extension-host/openvsx";
+import { errorResponse } from "../../shared/output";
 
 /**
  * ext install コマンドハンドラ。
@@ -20,16 +21,13 @@ export async function handleExtInstall(
   const source = args.source as string | undefined;
 
   if (!source) {
-    return { ok: false, error: "Missing required arg: source" };
+    return errorResponse("Missing required arg: source");
   }
 
   try {
     let ext;
 
-    // ローカルパス判定: "/" または "." を含む場合
-    const isLocalPath = source.includes("/") || source.includes(".");
-
-    // ただし "namespace.name" 形式（"." は1つだけで "/" を含まない）の場合はレジストリID
+    // "namespace.name" 形式（"." は1つだけで "/" を含まない）の場合はレジストリID
     const isRegistryId = !source.includes("/") && source.split(".").length === 2;
 
     if (isRegistryId) {
@@ -67,10 +65,7 @@ export async function handleExtInstall(
 
     return { ok: true, data: summary };
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to install extension: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to install extension: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -78,7 +73,7 @@ export async function handleExtInstall(
  * ext list コマンドハンドラ。
  */
 export async function handleExtList(
-  args: Record<string, unknown>,
+  _args: Record<string, unknown>,
   registry: ExtensionRegistry
 ): Promise<IpcResponse> {
   const extensions = registry.list();
@@ -109,13 +104,13 @@ export async function handleExtRemove(
   const extensionId = args.extensionId as string | undefined;
 
   if (!extensionId) {
-    return { ok: false, error: "Missing required arg: extensionId" };
+    return errorResponse("Missing required arg: extensionId");
   }
 
   const removed = await registry.remove(extensionId);
 
   if (!removed) {
-    return { ok: false, error: `Extension not found: ${extensionId}` };
+    return errorResponse(`Extension not found: ${extensionId}`);
   }
 
   const message = [

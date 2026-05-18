@@ -16,6 +16,7 @@ import type { BufferManager } from "../buffer/manager";
 import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
 import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
 import { filepath, added, muted, warning as colorWarning } from "../../shared/colors";
+import { errorResponse } from "../../shared/output";
 
 /** リトライロジックの定数（read-varと同期） */
 const INITIAL_WAIT_MS = 1000;
@@ -261,7 +262,7 @@ export async function handleModifyVar(
   const toName = args.to as string | undefined;
 
   if (!filePath || !fromName || !toName) {
-    return { ok: false, error: "Missing required args: file, from, to" };
+    return errorResponse("Missing required args: file, from, to");
   }
 
   const absPath = resolve(filePath);
@@ -270,7 +271,7 @@ export async function handleModifyVar(
   try {
     bufferManager.getContent(absPath);
   } catch {
-    return { ok: false, error: `Cannot read file: ${absPath}` };
+    return errorResponse(`Cannot read file: ${absPath}`);
   }
 
   const projectRoot = findProjectRoot(absPath);
@@ -293,10 +294,7 @@ export async function handleModifyVar(
         fileEdits.push(fileEdit);
         fileChanges.push({ filePath: path, before, after });
       } catch (err) {
-        return {
-          ok: false,
-          error: `Failed to write file ${path}: ${err instanceof Error ? err.message : String(err)}`,
-        };
+        return errorResponse(`Failed to write file ${path}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
@@ -315,7 +313,7 @@ export async function handleModifyVar(
     const before = bufferManager.getContent(absPath);
     const fileEdit = textReplace(absPath, fromName, toName, bufferManager);
     if (fileEdit.edits.length === 0) {
-      return { ok: false, error: `Variable "${fromName}" not found in ${absPath}` };
+      return errorResponse(`Variable "${fromName}" not found in ${absPath}`);
     }
     const after = bufferManager.getContent(absPath);
 

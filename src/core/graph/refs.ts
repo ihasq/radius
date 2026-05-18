@@ -23,7 +23,7 @@ export async function generateRefGraph(
   symbolName: string,
   projectRoot: string,
   lspManager: LspManager,
-  bufferManager: BufferManager
+  _bufferManager: BufferManager
 ): Promise<string> {
   const builder = new MermaidBuilder("TD");
 
@@ -131,7 +131,7 @@ function findSymbolPosition(
 function textSearchReferences(
   filePath: string,
   symbolName: string,
-  projectRoot: string
+  _projectRoot: string
 ): Array<{ uri: string; line: number; character: number }> {
   const results: Array<{ uri: string; line: number; character: number }> = [];
   try {

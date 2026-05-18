@@ -8,6 +8,7 @@
 import type { IpcRequest, IpcResponse } from "../../shared/types";
 import type { DaemonContext } from "../../daemon/registry";
 import { findProjectRoot } from "../../shared/project";
+import { errorResponse } from "../../shared/output";
 
 export async function handleAcceptChange(
   request: IpcRequest,
@@ -19,7 +20,7 @@ export async function handleAcceptChange(
 
   // 引数検証
   if (!conflictId) {
-    return { ok: false, error: "missing argument: --conflict <conflict-id>" };
+    return errorResponse("missing argument: --conflict <conflict-id>");
   }
 
   // プロジェクトルートとチェーンIDを取得
@@ -33,7 +34,7 @@ export async function handleAcceptChange(
     const conflict = await conflictManager.acceptConflict(conflictId, chainId);
 
     if (!conflict) {
-      return { ok: false, error: `conflict not found: ${conflictId}` };
+      return errorResponse(`conflict not found: ${conflictId}`);
     }
 
     // 通知をクリア
@@ -54,6 +55,6 @@ export async function handleAcceptChange(
       data: lines.join("\n"),
     };
   } catch (err) {
-    return { ok: false, error: (err as Error).message };
+    return errorResponse((err as Error).message);
   }
 }

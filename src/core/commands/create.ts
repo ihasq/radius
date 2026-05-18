@@ -6,7 +6,6 @@
 
 import { existsSync, mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
-import { findProjectRoot } from "../../shared/project";
 import type { HistoryTracker } from "../history/tracker";
 import type { Changeset } from "../history/types";
 import type { IpcResponse } from "../../shared/types";
@@ -14,7 +13,8 @@ import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
 import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
-import { filepath, added } from "../../shared/colors";
+import { filepath } from "../../shared/colors";
+import { formatPreview, errorResponse } from "../../shared/output";
 
 /**
  * create コマンドハンドラ。
@@ -30,14 +30,14 @@ export async function handleCreate(
   const content = args.content as string | undefined;
 
   if (!file) {
-    return { ok: false, error: "Missing required arg: file" };
+    return errorResponse("Missing required arg: file");
   }
 
   const absPath = resolve(file);
 
   // 既存ファイルチェック
   if (existsSync(absPath)) {
-    return { ok: false, error: "file already exists." };
+    return errorResponse("file already exists.");
   }
 
   // 親ディレクトリを作成
@@ -45,10 +45,7 @@ export async function handleCreate(
   try {
     mkdirSync(dir, { recursive: true });
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to create directory: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to create directory: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   const fileContent = content || "";
@@ -62,10 +59,7 @@ export async function handleCreate(
     }
     bufferManager.flush(absPath);
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to create file: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to create file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // Changeset 記録（before="" 形式）
@@ -86,7 +80,7 @@ export async function handleCreate(
   await historyTracker.record(changeset);
 
   // ファイル内容を出力に含める
-  const contentPreview = generateContentPreview(fileContent);
+  const contentPreview = formatPreview(fileContent);
 
   // LSP診断情報を収集（ID付与・差分検出）
   const diagnosticsOutput = await collectAndFormatWithTracking(
@@ -102,30 +96,3 @@ export async function handleCreate(
   };
 }
 
-/**
- * ファイル内容のプレビューを生成する。
- * 20行以下は全文、超過時は先頭10行 + "... (N more lines)"
- */
-function generateContentPreview(content: string): string {
-  const lines = content.split("\n");
-
-  if (lines.length <= 20) {
-    // 全文表示（行番号付き、全行緑）
-    return lines
-      .map((line, i) => {
-        const lineNum = String(i + 1).padStart(4, " ");
-        return added(` ${lineNum}: ${line}`);
-      })
-      .join("\n");
-  } else {
-    // 先頭10行 + 省略メッセージ（全行緑）
-    const preview = lines
-      .slice(0, 10)
-      .map((line, i) => {
-        const lineNum = String(i + 1).padStart(4, " ");
-        return added(` ${lineNum}: ${line}`);
-      })
-      .join("\n");
-    return `${preview}\n... (${lines.length - 10} more lines)`;
-  }
-}

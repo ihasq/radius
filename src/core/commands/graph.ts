@@ -14,6 +14,7 @@ import { generateImportGraph } from "../graph/imports";
 import { generateRefGraph } from "../graph/refs";
 import { generateCallGraph } from "../graph/calls";
 import { existsSync } from "node:fs";
+import { errorResponse } from "../../shared/output";
 
 /**
  * graph コマンドハンドラ
@@ -28,24 +29,15 @@ export async function handleGraph(
   const filePath = request.args.file as string | undefined;
 
   if (!subcommand) {
-    return {
-      ok: false,
-      error: "Usage: graph {imports|refs|calls} <file> [options]",
-    };
+    return errorResponse("Usage: graph {imports|refs|calls} <file> [options]");
   }
 
   if (!filePath) {
-    return {
-      ok: false,
-      error: "Missing required argument: file",
-    };
+    return errorResponse("Missing required argument: file");
   }
 
   if (!existsSync(filePath)) {
-    return {
-      ok: false,
-      error: `File not found: ${filePath}`,
-    };
+    return errorResponse(`File not found: ${filePath}`);
   }
 
   switch (subcommand) {
@@ -59,10 +51,7 @@ export async function handleGraph(
       return await handleCalls(request.args, filePath, projectRoot, lspManager, bufferManager);
 
     default:
-      return {
-        ok: false,
-        error: `Unknown graph subcommand: ${subcommand}. Use imports, refs, or calls.`,
-      };
+      return errorResponse(`Unknown graph subcommand: ${subcommand}. Use imports, refs, or calls.`);
   }
 }
 
@@ -90,10 +79,7 @@ async function handleImports(
       data: mermaid,
     };
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to generate import graph: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to generate import graph: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -109,10 +95,7 @@ async function handleRefs(
 ): Promise<IpcResponse> {
   const symbolName = args.symbol as string | undefined;
   if (!symbolName) {
-    return {
-      ok: false,
-      error: "Usage: graph refs <file> <symbol> - Missing symbol name",
-    };
+    return errorResponse("Usage: graph refs <file> <symbol> - Missing symbol name");
   }
 
   try {
@@ -122,10 +105,7 @@ async function handleRefs(
       data: mermaid,
     };
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to generate reference graph: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to generate reference graph: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -141,10 +121,7 @@ async function handleCalls(
 ): Promise<IpcResponse> {
   const functionName = args.function as string | undefined;
   if (!functionName) {
-    return {
-      ok: false,
-      error: "Usage: graph calls <file> <function> - Missing function name",
-    };
+    return errorResponse("Usage: graph calls <file> <function> - Missing function name");
   }
 
   try {
@@ -154,9 +131,6 @@ async function handleCalls(
       data: mermaid,
     };
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to generate call graph: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to generate call graph: ${err instanceof Error ? err.message : String(err)}`);
   }
 }

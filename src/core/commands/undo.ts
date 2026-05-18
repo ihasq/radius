@@ -4,25 +4,25 @@
  * HistoryTrackerを使用して直前の操作を取り消す。
  */
 
-import { resolve } from "node:path";
 import { LspManager } from "../../lsp/manager";
 import { findProjectRoot } from "../../shared/project";
 import { HistoryTracker } from "../history/tracker";
 import type { IpcResponse } from "../../shared/types";
 import { filepath, warning as colorWarning } from "../../shared/colors";
+import { errorResponse } from "../../shared/output";
 
 /**
  * undo コマンドのエントリポイント。
  */
 export async function handleUndo(
-  args: Record<string, unknown>,
+  _args: Record<string, unknown>,
   lspManager: LspManager,
   historyTracker: HistoryTracker
 ): Promise<IpcResponse> {
   const changeset = await historyTracker.undo();
 
   if (!changeset) {
-    return { ok: false, error: "No history to undo" };
+    return errorResponse("No history to undo");
   }
 
   // A2: 復元された各ファイルの didClose を送信

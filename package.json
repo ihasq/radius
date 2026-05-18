@@ -6,7 +6,8 @@
     "cli": "bun run src/cli/main.ts",
     "daemon": "bun run src/daemon/main.ts",
     "build": "./scripts/build.sh",
-    "test": "bun test --timeout 60000",
+    "test": "bash scripts/test-parallel.sh",
+    "test:serial": "bun test --timeout 60000",
     "test:dev": "bun test --bail --timeout 60000",
     "test:failures": "bun test --timeout 60000 2>&1 | awk '/^\\(fail\\)/,/^\\(pass\\)|^\\(fail\\)|^\\(skip\\)|^[0-9]+ pass/'"
   },
@@ -17,7 +18,6 @@
   },
   "dependencies": {
     "adm-zip": "^0.5.17",
-    "kolorist": "^1.8.0",
     "typescript": "^6.0.3",
     "typescript-language-server": "^5.2.0",
     "vscode-textbuffer": "^1.0.0"

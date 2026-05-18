@@ -11,6 +11,7 @@ import type { IpcResponse } from "../../shared/types";
 import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import type { LspHover, LspMarkupContent } from "../../lsp/types";
+import { errorResponse } from "../../shared/output";
 
 /**
  * hover コマンドハンドラ。
@@ -25,17 +26,17 @@ export async function handleHover(
   const col = args.col as number | string | undefined;
 
   if (!file) {
-    return { ok: false, error: "Missing required arg: file" };
+    return errorResponse("Missing required arg: file");
   }
 
   if (line === undefined || col === undefined) {
-    return { ok: false, error: "Missing required args: --line and --col" };
+    return errorResponse("Missing required args: --line and --col");
   }
 
   const absPath = resolve(file);
 
   if (!existsSync(absPath)) {
-    return { ok: false, error: `File not found: ${absPath}` };
+    return errorResponse(`File not found: ${absPath}`);
   }
 
   const projectRoot = findProjectRoot(absPath);
@@ -53,10 +54,7 @@ export async function handleHover(
   try {
     content = bufferManager.getContent(absPath);
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to read file: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   const languageId = getLanguageId(absPath);

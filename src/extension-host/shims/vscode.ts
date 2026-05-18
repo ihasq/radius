@@ -14,7 +14,7 @@ export class Uri {
   fsPath: string;
   path: string;
 
-  constructor(scheme: string, authority: string, path: string, query: string, fragment: string) {
+  constructor(scheme: string, _authority: string, path: string, _query: string, _fragment: string) {
     this.scheme = scheme;
     this.path = path;
     this.fsPath = scheme === "file" ? path : "";
@@ -151,24 +151,24 @@ export interface WorkspaceConfiguration {
   get<T>(section: string): T | undefined;
   get<T>(section: string, defaultValue: T): T;
   has(section: string): boolean;
-  inspect<T>(section: string): { key: string } | undefined;
+  inspect<T>(section: string): { key: string; defaultValue?: T } | undefined;
   update(section: string, value: any): Promise<void>;
 }
 
 class DummyWorkspaceConfiguration implements WorkspaceConfiguration {
-  get<T>(section: string, defaultValue?: T): T | undefined {
+  get<T>(_section: string, defaultValue?: T): T | undefined {
     return defaultValue;
   }
 
-  has(section: string): boolean {
+  has(_section: string): boolean {
     return false;
   }
 
-  inspect<T>(section: string): { key: string } | undefined {
+  inspect<T>(_section: string): { key: string; defaultValue?: T } | undefined {
     return undefined;
   }
 
-  async update(section: string, value: any): Promise<void> {
+  async update(_section: string, _value: any): Promise<void> {
     // no-op
   }
 }
@@ -193,7 +193,7 @@ class WorkspaceImpl {
   onDidChangeTextDocument: Event<any> = createNoOpEvent();
   onDidSaveTextDocument: Event<TextDocument> = createNoOpEvent();
 
-  getConfiguration(section?: string): WorkspaceConfiguration {
+  getConfiguration(_section?: string): WorkspaceConfiguration {
     return new DummyWorkspaceConfiguration();
   }
 
@@ -201,7 +201,7 @@ class WorkspaceImpl {
     return new FileSystemWatcherImpl(globPattern);
   }
 
-  getWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined {
+  getWorkspaceFolder(_uri: Uri): WorkspaceFolder | undefined {
     return this.workspaceFolders?.[0];
   }
 }
@@ -217,7 +217,7 @@ class FileSystemWatcherImpl extends Disposable implements FileSystemWatcher {
   onDidChange: Event<Uri> = createNoOpEvent();
   onDidDelete: Event<Uri> = createNoOpEvent();
 
-  constructor(globPattern: string) {
+  constructor(_globPattern: string) {
     super(() => {});
   }
 }
@@ -237,7 +237,7 @@ export interface OutputChannel extends Disposable {
 }
 
 class OutputChannelImpl extends Disposable implements OutputChannel {
-  constructor(private name: string) {
+  constructor(_name: string) {
     super(() => {});
   }
 
@@ -253,7 +253,7 @@ class OutputChannelImpl extends Disposable implements OutputChannel {
     // no-op
   }
 
-  show(preserveFocus?: boolean): void {
+  show(_preserveFocus?: boolean): void {
     // no-op
   }
 
@@ -267,17 +267,17 @@ class WindowImpl {
     return new OutputChannelImpl(name);
   }
 
-  showInformationMessage(message: string, ...items: string[]): Promise<string | undefined> {
+  showInformationMessage(message: string, ..._items: string[]): Promise<string | undefined> {
     console.log(`[info] ${message}`);
     return Promise.resolve(undefined);
   }
 
-  showWarningMessage(message: string, ...items: string[]): Promise<string | undefined> {
+  showWarningMessage(message: string, ..._items: string[]): Promise<string | undefined> {
     console.warn(`[warn] ${message}`);
     return Promise.resolve(undefined);
   }
 
-  showErrorMessage(message: string, ...items: string[]): Promise<string | undefined> {
+  showErrorMessage(message: string, ..._items: string[]): Promise<string | undefined> {
     console.error(`[error] ${message}`);
     return Promise.resolve(undefined);
   }

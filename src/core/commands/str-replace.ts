@@ -6,7 +6,6 @@
 
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { findProjectRoot } from "../../shared/project";
 import type { HistoryTracker } from "../history/tracker";
 import type { Changeset } from "../history/types";
 import type { IpcResponse, ChangeMetadata } from "../../shared/types";
@@ -14,7 +13,8 @@ import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
 import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
-import { filepath, marker as colorMarker } from "../../shared/colors";
+import { filepath } from "../../shared/colors";
+import { formatContext, errorResponse } from "../../shared/output";
 
 /**
  * str-replace コマンドハンドラ。
@@ -31,13 +31,13 @@ export async function handleStrReplace(
   const newText = args.new as string | undefined;
 
   if (!file || oldText === undefined || newText === undefined) {
-    return { ok: false, error: "Missing required args: file, old, new" };
+    return errorResponse("Missing required args: file, old, new");
   }
 
   const absPath = resolve(file);
 
   if (!existsSync(absPath)) {
-    return { ok: false, error: `File not found: ${absPath}` };
+    return errorResponse(`File not found: ${absPath}`);
   }
 
   // BufferManager からファイル内容を取得
@@ -45,10 +45,7 @@ export async function handleStrReplace(
   try {
     content = bufferManager.getContent(absPath);
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to read file: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // 出現箇所を検索
@@ -61,14 +58,11 @@ export async function handleStrReplace(
 
   // 出現数チェック
   if (occurrences.length === 0) {
-    return { ok: false, error: "no match found." };
+    return errorResponse("no match found.");
   }
 
   if (occurrences.length > 1) {
-    return {
-      ok: false,
-      error: `multiple matches found (${occurrences.length}). Use a more specific string.`,
-    };
+    return errorResponse(`multiple matches found (${occurrences.length}). Use a more specific string.`);
   }
 
   // 置換実行（BufferManager 経由）
@@ -78,10 +72,7 @@ export async function handleStrReplace(
     bufferManager.insert(absPath, offset, newText);
     bufferManager.flush(absPath);
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to write file: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to write file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // 変更後の内容を取得
@@ -105,7 +96,9 @@ export async function handleStrReplace(
   await historyTracker.record(changeset);
 
   // 変更箇所のコンテキストを生成
-  const context = generateChangeContext(newContent, occurrences[0], oldText.length, newText.length);
+  const lines = newContent.split("\n");
+  const changeLine = getLineFromOffset(newContent, occurrences[0]);
+  const context = formatContext({ lines, highlightLines: [changeLine] });
 
   // LSP診断情報を収集（ID付与・差分検出）
   const diagnosticsOutput = await collectAndFormatWithTracking(
@@ -130,7 +123,7 @@ export async function handleStrReplace(
  */
 function calculateChangeMetadata(
   oldContent: string,
-  newContent: string,
+  _newContent: string,
   changeOffset: number,
   oldText: string,
   newText: string,
@@ -166,41 +159,17 @@ function calculateChangeMetadata(
 }
 
 /**
- * 変更箇所の前後3行を行番号付きで出力する。
+ * オフセット位置から行番号を取得する（0-indexed）。
  */
-function generateChangeContext(
-  content: string,
-  changeOffset: number,
-  oldLength: number,
-  newLength: number
-): string {
+function getLineFromOffset(content: string, offset: number): number {
   const lines = content.split("\n");
-
-  // 変更箇所の行番号を特定（0-indexed）
   let currentOffset = 0;
-  let changeLine = 0;
   for (let i = 0; i < lines.length; i++) {
-    const lineLength = lines[i].length + 1; // +1 for newline
-    if (currentOffset + lineLength > changeOffset) {
-      changeLine = i;
-      break;
+    const lineLength = lines[i].length + 1;
+    if (currentOffset + lineLength > offset) {
+      return i;
     }
     currentOffset += lineLength;
   }
-
-  // 前後3行の範囲を計算
-  const startLine = Math.max(0, changeLine - 3);
-  const endLine = Math.min(lines.length - 1, changeLine + 3);
-
-  // 出力生成
-  const output: string[] = [];
-  for (let i = startLine; i <= endLine; i++) {
-    const lineNum = String(i + 1).padStart(4, " ");
-    const marker = i === changeLine ? ">" : " ";
-    const line = `${marker}${lineNum}: ${lines[i]}`;
-    // マーカー行はカラー適用
-    output.push(i === changeLine ? colorMarker(line) : line);
-  }
-
-  return output.join("\n");
+  return lines.length - 1;
 }

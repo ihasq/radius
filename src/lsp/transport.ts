@@ -5,8 +5,6 @@
  * 受信: ストリームからヘッダを解析し、Content-Lengthバイト分のボディを読み取る。
  */
 
-import type { Subprocess } from "bun";
-
 /**
  * LSPメッセージをエンコードしてプロセスのstdinに書き込む。
  * Bunの Subprocess.stdin は FileSink 型であり、write() を直接呼び出す。

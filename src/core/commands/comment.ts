@@ -14,6 +14,7 @@ import type { BufferManager } from "../buffer/manager";
 import type { Changeset } from "../history/types";
 import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
 import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
+import { errorResponse } from "../../shared/output";
 
 /** 言語ごとのコメント構文。 */
 interface CommentSyntax {
@@ -68,17 +69,17 @@ export async function handleComment(
   const uncomment = args.uncomment === true;
 
   if (!file) {
-    return { ok: false, error: "Missing required arg: file" };
+    return errorResponse("Missing required arg: file");
   }
 
   if (!lineArg && !rangeArg) {
-    return { ok: false, error: "Missing required arg: --line or --range" };
+    return errorResponse("Missing required arg: --line or --range");
   }
 
   const absPath = resolve(file);
 
   if (!existsSync(absPath)) {
-    return { ok: false, error: `File not found: ${absPath}` };
+    return errorResponse(`File not found: ${absPath}`);
   }
 
   const projectRoot = findProjectRoot(absPath);
@@ -89,10 +90,7 @@ export async function handleComment(
   try {
     content = bufferManager.getContent(absPath);
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to read file: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // 言語に応じたコメント構文を取得
@@ -109,14 +107,14 @@ export async function handleComment(
     startLine = parseInt(parts[0], 10);
     endLine = parseInt(parts[1], 10);
     if (isNaN(startLine) || isNaN(endLine)) {
-      return { ok: false, error: "Invalid range format. Use --range start:end" };
+      return errorResponse("Invalid range format. Use --range start:end");
     }
   } else {
     // --line N
     startLine = typeof lineArg === "number" ? lineArg : parseInt(lineArg as string, 10);
     endLine = startLine;
     if (isNaN(startLine)) {
-      return { ok: false, error: "Invalid line number" };
+      return errorResponse("Invalid line number");
     }
   }
 
@@ -125,7 +123,7 @@ export async function handleComment(
   endLine = Math.min(lines.length - 1, endLine - 1);
 
   if (startLine > endLine || startLine < 0 || endLine >= lines.length) {
-    return { ok: false, error: `Invalid line range: ${startLine + 1}:${endLine + 1}` };
+    return errorResponse(`Invalid line range: ${startLine + 1}:${endLine + 1}`);
   }
 
   const oldContent = content;

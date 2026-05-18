@@ -54,7 +54,7 @@ function generateChainId(): string {
 /**
  * タグインデックスファイルのパスを取得
  */
-function getTagIndexPath(projectRoot: string, hash: string): string {
+function getTagIndexPath(_projectRoot: string, hash: string): string {
   if (!hash) {
     throw new Error("[SessionManager] getTagIndexPath called with empty hash");
   }

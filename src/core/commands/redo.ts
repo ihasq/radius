@@ -4,25 +4,25 @@
  * HistoryTrackerを使用して直前の undo を再適用する。
  */
 
-import { resolve } from "node:path";
 import { LspManager } from "../../lsp/manager";
 import { findProjectRoot } from "../../shared/project";
 import { HistoryTracker } from "../history/tracker";
 import type { IpcResponse } from "../../shared/types";
 import { filepath, warning as colorWarning } from "../../shared/colors";
+import { errorResponse } from "../../shared/output";
 
 /**
  * redo コマンドのエントリポイント。
  */
 export async function handleRedo(
-  args: Record<string, unknown>,
+  _args: Record<string, unknown>,
   lspManager: LspManager,
   historyTracker: HistoryTracker
 ): Promise<IpcResponse> {
   const changeset = await historyTracker.redo();
 
   if (!changeset) {
-    return { ok: false, error: "No history to redo" };
+    return errorResponse("No history to redo");
   }
 
   // A2: 復元された各ファイルの didClose を送信

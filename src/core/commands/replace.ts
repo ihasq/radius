@@ -11,6 +11,7 @@ import { replaceInContent, type SearchOptions } from "../search/engine";
 import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
 import { findProjectRoot } from "../../shared/project";
 import { marker as colorMarker } from "../../shared/colors";
+import { errorResponse } from "../../shared/output";
 
 export async function handleReplace(
   request: IpcRequest,
@@ -34,7 +35,7 @@ export async function handleReplace(
       isRegex = parsed.regex === true;
       ignoreCase = parsed.ignoreCase === true;
     } catch (err) {
-      return { ok: false, error: `invalid JSON in stdin: ${(err as Error).message}` };
+      return errorResponse(`invalid JSON in stdin: ${(err as Error).message}`);
     }
   } else {
     pattern = args.pattern as string | undefined;
@@ -43,19 +44,19 @@ export async function handleReplace(
 
   // 引数検証
   if (!filePath) {
-    return { ok: false, error: "missing argument: <file>" };
+    return errorResponse("missing argument: <file>");
   }
 
   if (!pattern) {
-    return { ok: false, error: "missing required option: --pattern" };
+    return errorResponse("missing required option: --pattern");
   }
 
   if (replacement === undefined) {
-    return { ok: false, error: "missing required option: --replacement" };
+    return errorResponse("missing required option: --replacement");
   }
 
   if (!existsSync(filePath)) {
-    return { ok: false, error: `file not found: ${filePath}` };
+    return errorResponse(`file not found: ${filePath}`);
   }
 
   // 検索オプション構築
@@ -69,7 +70,7 @@ export async function handleReplace(
   try {
     new RegExp(searchOpts.isRegex ? pattern : pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   } catch (err) {
-    return { ok: false, error: `invalid regex pattern: ${(err as Error).message}` };
+    return errorResponse(`invalid regex pattern: ${(err as Error).message}`);
   }
 
   // バッファマネージャからファイル内容取得
@@ -79,7 +80,7 @@ export async function handleReplace(
   const result = replaceInContent(oldContent, searchOpts, replacement, maxReplacements);
 
   if (result.count === 0) {
-    return { ok: false, error: "no matches found for pattern." };
+    return errorResponse("no matches found for pattern.");
   }
 
   // バッファに反映（全内容を置き換え）

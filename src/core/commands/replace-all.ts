@@ -13,6 +13,7 @@ import { findFiles, type GlobOptions } from "../search/glob";
 import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
 import { findProjectRoot } from "../../shared/project";
 import { marker as colorMarker } from "../../shared/colors";
+import { errorResponse } from "../../shared/output";
 
 export async function handleReplaceAll(
   request: IpcRequest,
@@ -39,7 +40,7 @@ export async function handleReplaceAll(
       include = parsed.include;
       exclude = parsed.exclude;
     } catch (err) {
-      return { ok: false, error: `invalid JSON in stdin: ${(err as Error).message}` };
+      return errorResponse(`invalid JSON in stdin: ${(err as Error).message}`);
     }
   } else {
     pattern = args.pattern as string | undefined;
@@ -56,24 +57,24 @@ export async function handleReplaceAll(
 
   // 引数検証
   if (!dir) {
-    return { ok: false, error: "missing argument: <dir>" };
+    return errorResponse("missing argument: <dir>");
   }
 
   if (!pattern) {
-    return { ok: false, error: "missing required option: --pattern" };
+    return errorResponse("missing required option: --pattern");
   }
 
   if (replacement === undefined) {
-    return { ok: false, error: "missing required option: --replacement" };
+    return errorResponse("missing required option: --replacement");
   }
 
   if (!existsSync(dir)) {
-    return { ok: false, error: `directory not found: ${dir}` };
+    return errorResponse(`directory not found: ${dir}`);
   }
 
   const stat = statSync(dir);
   if (!stat.isDirectory()) {
-    return { ok: false, error: `not a directory: ${dir}` };
+    return errorResponse(`not a directory: ${dir}`);
   }
 
   // 検索オプション構築
@@ -87,7 +88,7 @@ export async function handleReplaceAll(
   try {
     new RegExp(searchOpts.isRegex ? pattern : pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   } catch (err) {
-    return { ok: false, error: `invalid regex pattern: ${(err as Error).message}` };
+    return errorResponse(`invalid regex pattern: ${(err as Error).message}`);
   }
 
   // ファイル一覧取得
@@ -133,7 +134,7 @@ export async function handleReplaceAll(
   }
 
   if (replacements.length === 0) {
-    return { ok: false, error: "no matches found in any files." };
+    return errorResponse("no matches found in any files.");
   }
 
   // バッファマネージャに反映

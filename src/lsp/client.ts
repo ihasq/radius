@@ -51,7 +51,7 @@ export class LspClient {
     this.readLoop();
 
     // initialize リクエスト。
-    const initResult = await this.request("initialize", {
+    await this.request("initialize", {
       processId: process.pid,
       rootUri: this.rootUri,
       capabilities: {
@@ -389,7 +389,7 @@ export class LspClient {
 
   /** A1, A2: pending全てをrejectする */
   private rejectAllPending(reason: string): void {
-    for (const [id, pending] of this.pending.entries()) {
+    for (const [_id, pending] of this.pending.entries()) {
       pending.reject(new Error(reason));
     }
     this.pending.clear();

@@ -8,7 +8,7 @@
 import { resolve, dirname } from "node:path";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, readdirSync } from "node:fs";
 import { projectHash } from "../../shared/paths";
-import type { Changeset, FileChange } from "./types";
+import type { Changeset } from "./types";
 
 interface State {
   oldest: number;  // C2: 最古の有効Changeset番号

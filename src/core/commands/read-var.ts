@@ -12,6 +12,7 @@ import { findProjectRoot } from "../../shared/project";
 import type { LspLocation } from "../../lsp/types";
 import type { IpcResponse } from "../../shared/types";
 import type { BufferManager } from "../buffer/manager";
+import { errorResponse } from "../../shared/output";
 
 /** 各出現箇所の前後に含めるコンテキスト行数。 */
 const CONTEXT_LINES = 3;
@@ -198,7 +199,7 @@ export async function handleReadVar(
   const varName = args.var as string | undefined;
 
   if (!filePath || !varName) {
-    return { ok: false, error: "Missing required args: file, var" };
+    return errorResponse("Missing required args: file, var");
   }
 
   const absPath = resolve(filePath);
@@ -208,7 +209,7 @@ export async function handleReadVar(
   try {
     content = bufferManager.getContent(absPath);
   } catch {
-    return { ok: false, error: `Cannot read file: ${absPath}` };
+    return errorResponse(`Cannot read file: ${absPath}`);
   }
 
   const lines = content.split("\n");
@@ -224,7 +225,7 @@ export async function handleReadVar(
   }
 
   if (occurrences.length === 0) {
-    return { ok: false, error: `Variable "${varName}" not found in ${absPath}` };
+    return errorResponse(`Variable "${varName}" not found in ${absPath}`);
   }
 
   const result: ReadVarResult = {

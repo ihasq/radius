@@ -10,6 +10,7 @@ import { findProjectRoot } from "../../shared/project";
 import type { IpcResponse } from "../../shared/types";
 import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
+import { errorResponse } from "../../shared/output";
 
 /** セマンティックトークンタイプ（標準的な定義）。 */
 const TOKEN_TYPES = [
@@ -63,13 +64,13 @@ export async function handleTokens(
   const rangeArg = args.range as string | undefined;
 
   if (!file) {
-    return { ok: false, error: "Missing required arg: file" };
+    return errorResponse("Missing required arg: file");
   }
 
   const absPath = resolve(file);
 
   if (!existsSync(absPath)) {
-    return { ok: false, error: `File not found: ${absPath}` };
+    return errorResponse(`File not found: ${absPath}`);
   }
 
   const projectRoot = findProjectRoot(absPath);
@@ -93,10 +94,7 @@ export async function handleTokens(
   try {
     content = bufferManager.getContent(absPath);
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to read file: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   const languageId = getLanguageId(absPath);
@@ -116,7 +114,7 @@ export async function handleTokens(
 
       if (isNaN(startLine) || isNaN(endLine)) {
         client.closeDocument(uri);
-        return { ok: false, error: "Invalid range format. Use --range start:end" };
+        return errorResponse("Invalid range format. Use --range start:end");
       }
 
       const range = {

@@ -36,13 +36,11 @@ interface RegistryData {
  * 診断レジストリ
  */
 export class DiagnosticRegistry {
-  private projectRoot: string;
   private registryPath: string;
   private data: RegistryData;
+  private dirty: boolean = false;
 
   constructor(projectRoot: string) {
-    this.projectRoot = projectRoot;
-
     // プロジェクトルートのハッシュを計算
     const hash = createHash("sha256").update(projectRoot).digest("hex").substring(0, 16);
     const radiusHome = process.env.RADIUS_HOME || join(process.env.HOME || "~", ".radius");
@@ -72,11 +70,16 @@ export class DiagnosticRegistry {
 
   /**
    * レジストリをディスクに永続化する。
+   * dirty フラグが false の場合は何もしない。
    */
   save(): void {
+    if (!this.dirty) {
+      return;
+    }
     const dir = dirname(this.registryPath);
     mkdirSync(dir, { recursive: true });
     writeFileSync(this.registryPath, JSON.stringify(this.data, null, 2), "utf-8");
+    this.dirty = false;
   }
 
   /**
@@ -136,6 +139,11 @@ export class DiagnosticRegistry {
 
     // レジストリ更新
     this.data.files[filePath] = [...active, ...added];
+
+    // 変更があった場合のみ dirty フラグを立てる
+    if (added.length > 0 || resolved.length > 0) {
+      this.dirty = true;
+    }
 
     return { active, added, resolved };
   }

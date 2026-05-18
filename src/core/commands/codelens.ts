@@ -11,6 +11,7 @@ import type { IpcResponse } from "../../shared/types";
 import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import type { LspCodeLens } from "../../lsp/types";
+import { errorResponse } from "../../shared/output";
 
 /**
  * codelens コマンドハンドラ。
@@ -23,13 +24,13 @@ export async function handleCodeLens(
   const file = args.file as string | undefined;
 
   if (!file) {
-    return { ok: false, error: "Missing required arg: file" };
+    return errorResponse("Missing required arg: file");
   }
 
   const absPath = resolve(file);
 
   if (!existsSync(absPath)) {
-    return { ok: false, error: `File not found: ${absPath}` };
+    return errorResponse(`File not found: ${absPath}`);
   }
 
   const projectRoot = findProjectRoot(absPath);
@@ -47,10 +48,7 @@ export async function handleCodeLens(
   try {
     content = bufferManager.getContent(absPath);
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to read file: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   const languageId = getLanguageId(absPath);

@@ -23,7 +23,7 @@ export async function generateCallGraph(
   functionName: string,
   projectRoot: string,
   lspManager: LspManager,
-  bufferManager: BufferManager
+  _bufferManager: BufferManager
 ): Promise<string> {
   const builder = new MermaidBuilder("TD");
 
@@ -201,7 +201,7 @@ function findFunctionPosition(
 function textSearchCalls(
   filePath: string,
   functionName: string,
-  projectRoot: string
+  _projectRoot: string
 ): Array<{ uri: string; line: number; calleeText: string }> {
   const results: Array<{ uri: string; line: number; calleeText: string }> = [];
   try {

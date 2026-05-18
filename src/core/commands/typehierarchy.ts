@@ -11,6 +11,7 @@ import type { IpcResponse } from "../../shared/types";
 import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import type { LspTypeHierarchyItem } from "../../lsp/types";
+import { errorResponse } from "../../shared/output";
 
 const MAX_DEPTH = 5;
 
@@ -26,22 +27,21 @@ export async function handleTypeHierarchy(
   const symbol = args.symbol as string | undefined;
 
   if (!file) {
-    return { ok: false, error: "Missing required arg: file" };
+    return errorResponse("Missing required arg: file");
   }
 
   if (!symbol) {
-    return { ok: false, error: "Missing required arg: --symbol" };
+    return errorResponse("Missing required arg: --symbol");
   }
 
   const absPath = resolve(file);
 
   if (!existsSync(absPath)) {
-    return { ok: false, error: `File not found: ${absPath}` };
+    return errorResponse(`File not found: ${absPath}`);
   }
 
   const projectRoot = findProjectRoot(absPath);
   const uri = `file://${absPath}`;
-  const relativePath = relative(projectRoot, absPath);
 
   // LSPクライアントを取得
   const client = await lspManager.getClient(absPath, projectRoot);
@@ -54,10 +54,7 @@ export async function handleTypeHierarchy(
   try {
     content = bufferManager.getContent(absPath);
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to read file: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   const languageId = getLanguageId(absPath);
@@ -82,7 +79,7 @@ export async function handleTypeHierarchy(
   }
 
   if (!symbolPosition) {
-    return { ok: false, error: `Symbol '${symbol}' not found in file` };
+    return errorResponse(`Symbol '${symbol}' not found in file`);
   }
 
   // ドキュメントを開く

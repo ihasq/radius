@@ -257,7 +257,7 @@ export const handlers: HandlerDef[] = [
   {
     command: "grep",
     requiresSession: true,
-    handler: async (request, ctx) => {
+    handler: async (request, _ctx) => {
       return await handleGrep(request);
     },
   },
@@ -366,7 +366,7 @@ export const handlers: HandlerDef[] = [
   {
     command: "diff",
     requiresSession: true,
-    handler: async (request, ctx) => {
+    handler: async (request, _ctx) => {
       return await handleDiff(request.args);
     },
   },
@@ -421,7 +421,7 @@ export const handlers: HandlerDef[] = [
   {
     command: "task",
     requiresSession: true,
-    handler: async (request, ctx) => {
+    handler: async (request, _ctx) => {
       const cwd = request.cwd || process.cwd();
       return await handleTask(request.args, cwd);
     },

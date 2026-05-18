@@ -17,6 +17,7 @@ import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
 import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
 import { filepath } from "../../shared/colors";
 import type { LspTextEdit } from "../../lsp/types";
+import { errorResponse } from "../../shared/output";
 
 /**
  * format コマンドハンドラ。
@@ -31,13 +32,13 @@ export async function handleFormat(
   const file = args.file as string | undefined;
 
   if (!file) {
-    return { ok: false, error: "Missing required arg: file" };
+    return errorResponse("Missing required arg: file");
   }
 
   const absPath = resolve(file);
 
   if (!existsSync(absPath)) {
-    return { ok: false, error: `File not found: ${absPath}` };
+    return errorResponse(`File not found: ${absPath}`);
   }
 
   const projectRoot = findProjectRoot(absPath);
@@ -54,10 +55,7 @@ export async function handleFormat(
   try {
     content = bufferManager.getContent(absPath);
   } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to read file: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   const languageId = resolveLanguageId(absPath);
