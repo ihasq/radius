@@ -87,6 +87,13 @@ export const handlers: HandlerDef[] = [
     },
   },
   {
+    command: "lsp-stop-all",
+    handler: async (_request, ctx) => {
+      await ctx.lspManager.stopAll();
+      return { ok: true, data: "all LSP clients stopped" };
+    },
+  },
+  {
     command: "read-var",
     requiresSession: true,
     handler: async (request, ctx) => {

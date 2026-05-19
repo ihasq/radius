@@ -1,9 +1,9 @@
 /**
  * テスト用デーモンヘルパー
  *
- * 並列化サポート: 各テストファイルは beforeAll で RADIUS_HOME を設定してから
- * startDaemon() を呼び出す。RADIUS_HOME が設定されていない場合はデフォルト
- * (~/.radius) を使用する。
+ * 直列実行ではデーモンは自動起動されるため、テストでの明示的な起動は不要。
+ * このファイルは後方互換性のためにエクスポートを維持するが、
+ * 通常は radius() ヘルパーがデーモン自動起動に依存する。
  */
 
 import { spawn } from "bun";
@@ -25,14 +25,11 @@ export async function isDaemonReady(): Promise<boolean> {
 
 /**
  * テスト用デーモンを起動する。
- * 既存デーモンが起動していれば停止してから再起動する。
- * RADIUS_HOME環境変数を子プロセスに引き継ぐ。
  */
 export async function startDaemon(): Promise<void> {
   // 既存デーモンを停止
   if (await isDaemonReady()) {
     await stopDaemon();
-    // ソケットファイルが削除されるまで待機
     await Bun.sleep(500);
   }
 
@@ -42,15 +39,11 @@ export async function startDaemon(): Promise<void> {
   if (existsSync(socketPath)) rmSync(socketPath);
   if (existsSync(pidPath)) rmSync(pidPath);
 
-  // デーモンを起動（RADIUS_HOMEを引き継ぐ）
+  // デーモンを起動
   spawn(["bun", "run", "src/daemon/main.ts"], {
     cwd: process.cwd(),
     stdout: "ignore",
     stderr: "ignore",
-    env: {
-      ...process.env,
-      RADIUS_HOME: process.env.RADIUS_HOME || "",
-    },
   });
 
   // 起動完了を待機（最大5秒）
@@ -70,8 +63,19 @@ export async function startDaemon(): Promise<void> {
 }
 
 /**
+ * 全LSPクライアントを停止する。
+ * テストの afterAll で呼び出してLSPリークを防止する。
+ */
+export async function stopAllLsp(): Promise<void> {
+  try {
+    await sendRequest({ command: "lsp-stop-all", args: {} }, 5000);
+  } catch {
+    // デーモン未起動の場合は無視
+  }
+}
+
+/**
  * テスト用デーモンを停止する。
- * PIDファイルからPIDを読み取ってプロセスを終了させる。
  */
 export async function stopDaemon(): Promise<void> {
   try {

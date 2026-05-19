@@ -48,30 +48,33 @@ export function getTip(command: string, errorMessage: string): string | null {
 }
 
 /**
- * コマンド成功時に表示すべきtipを返す。
- * 不要な場合は null を返す。
+ * 成功時に表示すべきtipを返す。
+ * コマンド実行結果が成功だが、ユーザーに補足情報を伝えたい場合に使用。
  */
-export function getSuccessTip(
-  command: string,
-  args: string[],
-  stdout: string
-): string | null {
+export function getSuccessTip(command: string, output: string): string | null {
   switch (command) {
     case "create":
-      if (!args.includes("--content") && !args.includes("--stdin")) {
-        return 'tip: pass --content "code" to create a file with content in one step';
+      // --content なしで作成された場合（空ファイルまたは空行のみ）
+      if (output.includes("created:")) {
+        // 行番号の後が空または空白のみの場合
+        if (output.match(/^\s*\d+:\s*$/m)) {
+          return 'tip: created empty file. add content with radius insert or --content flag';
+        }
       }
       break;
     case "view":
-      if (stdout.includes("0 items") || stdout.includes("empty directory")) {
-        return "tip: directory is empty. use radius create <file> to add files";
+      // 空ディレクトリの場合（出力が空または空白のみ）
+      if (output.trim() === "") {
+        return "tip: empty directory. use radius create <file> to add files";
       }
       break;
     case "grep":
-      if (stdout.includes("0 matches") || stdout.includes("no matches")) {
+      // 0マッチの場合
+      if (output.includes("matches: 0") || output.includes("no matches found")) {
         return "tip: try --ignore-case or --regex for broader matching";
       }
       break;
   }
+
   return null;
 }

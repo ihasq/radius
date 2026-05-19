@@ -5,6 +5,9 @@
 import { LspClient } from "./client";
 import type { ExtensionLoader } from "../extension-host/loader";
 
+/** LSPクライアントの最大保持数。上限到達時、最も古いクライアントを停止する。 */
+const MAX_LSP_CLIENTS = 2;
+
 /** ファイル拡張子からLSPサーバの起動コマンドを解決する（フォールバック）。 */
 function resolveLspCommandFallback(filePath: string): string[] | null {
   const ext = filePath.split(".").pop()?.toLowerCase();
@@ -66,6 +69,18 @@ export class LspManager {
   }
 
   /**
+   * 既存の起動済みLSPクライアントを返す（新規起動しない）。
+   * impact分析など、LSP起動をトリガーしたくない場合に使用。
+   */
+  getExistingClient(projectRoot: string): LspClient | null {
+    const existing = this.clients.get(projectRoot);
+    if (existing && existing.isAlive) {
+      return existing;
+    }
+    return null;
+  }
+
+  /**
    * 指定ファイルが属するプロジェクトのLSPクライアントを返す。
    * 未起動の場合は自動的に起動する。
    * LSPが利用不可能な場合はnullを返す。
@@ -94,6 +109,21 @@ export class LspManager {
 
     const command = this.resolveLspCommand(filePath);
     if (!command) return null;
+
+    // 上限到達時、最も古いクライアントを停止
+    if (this.clients.size >= MAX_LSP_CLIENTS) {
+      const oldestKey = this.clients.keys().next().value;
+      const oldestClient = this.clients.get(oldestKey);
+      if (oldestClient) {
+        console.log(`[lsp] evicting oldest client: ${oldestKey}`);
+        try {
+          await oldestClient.shutdown();
+        } catch {
+          // shutdown失敗は無視
+        }
+        this.clients.delete(oldestKey);
+      }
+    }
 
     const rootUri = `file://${projectRoot}`;
     const client = new LspClient(command, rootUri);
