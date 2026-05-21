@@ -56,11 +56,35 @@ export async function resolveProvider(filePath: string, depth: number = 1): Prom
     return providerCache.get("typescript-tsgo")!;
   }
 
-  // Phase 7 で他言語を追加:
-  // - Rust: rs
-  // - C++: cpp, cc, cxx, h, hpp
-  // - Go: go
-  // - Zig: zig
+  // Phase 7: Rust
+  if (ext === "rs") {
+    if (!providerCache.has("rust")) {
+      const { RustAdapter } = await import("@radius/radls-rs");
+      const { findProjectRoot } = await import("../shared/project");
+      const projectRoot = findProjectRoot(filePath);
+      const rootUri = `file://${projectRoot}`;
+      providerCache.set("rust", new RustAdapter(rootUri));
+    }
+    return providerCache.get("rust")!;
+  }
+
+  // Phase 7: C++
+  if (ext === "cpp" || ext === "cc" || ext === "cxx" || ext === "h" || ext === "hpp") {
+    // Placeholder for C++ support (clangd)
+    return null;
+  }
+
+  // Phase 7: Go
+  if (ext === "go") {
+    // Placeholder for Go support (gopls)
+    return null;
+  }
+
+  // Phase 7: Zig
+  if (ext === "zig") {
+    // Placeholder for Zig support (zls)
+    return null;
+  }
 
   // 未対応の言語
   return null;
