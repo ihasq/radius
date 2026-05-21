@@ -169,10 +169,10 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - name: Install fixture dependencies
-        run: |
-          cd tests/fixtures/ts-project && bun install
-          cd ../heavy-project && npm install
+      - name: Install ts-project dependencies
+        run: cd tests/fixtures/ts-project && bun install
+      - name: Install heavy-project dependencies
+        run: cd tests/fixtures/heavy-project && npm install
       - name: Build radiusd binary
         run: bash scripts/build.sh
       - name: Run ts-rad tests (depth 0-4, context, resources)
