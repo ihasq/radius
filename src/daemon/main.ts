@@ -240,6 +240,10 @@ async function runCliMode(): Promise<void> {
     console.log(muted("\n---"));
     console.log(`radius-tag: ${response.tag}`);
     console.log(muted(`[pass --tag ${response.tag} to your next radius command]`));
+    console.log("");
+    console.log(muted("> **`--tag` is mandatory.** Every subsequent command in this editing session MUST include `--tag " + response.tag + "`."));
+    console.log(muted("> Omitting `--tag` will start a new, disconnected chain and cause conflict errors."));
+    console.log(muted("> To intentionally start a new chain, pass `--reason \"your reason\"` instead."));
   }
 }
 

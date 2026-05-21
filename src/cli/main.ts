@@ -229,9 +229,14 @@ async function main(): Promise<void> {
     console.log(muted("\n---"));
     console.log(`radius-tag: ${response.tag}`);
     console.log(muted(`[include --tag ${response.tag} to maintain edit history]`));
+    console.log("");
+    console.log(muted("> **`--tag` is mandatory.** Every subsequent command in this editing session MUST include `--tag " + response.tag + "`."));
+    console.log(muted("> Omitting `--tag` will start a new, disconnected chain and cause conflict errors."));
+    console.log(muted("> To intentionally start a new chain, pass `--reason \"your reason\"` instead."));
 
     // 初回タグの場合は追加のノートを表示
     if (response.isFirstTag) {
+      console.log("");
       console.log(muted("(This is your first command. Radius will track your edits and enable undo.)"));
     }
   }
