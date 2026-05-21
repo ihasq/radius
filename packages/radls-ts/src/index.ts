@@ -15,6 +15,8 @@ export interface RadSymbol {
   kind: string;
   line: number;
   exported: boolean;
+  typeSignature?: string; // 関数の戻り値型、変数の型注釈
+  uses?: string[]; // このシンボルが使用している他のシンボル名
   children?: RadSymbol[];
 }
 
@@ -79,11 +81,52 @@ export class TsRad {
     const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
 
     if (ts.isFunctionDeclaration(node) && node.name) {
+      // 戻り値型を取得
+      const returnType = node.type ? node.type.getText(sourceFile) : "void";
+      const params = node.parameters.map(p => {
+        const paramName = p.name.getText(sourceFile);
+        const paramType = p.type ? p.type.getText(sourceFile) : "any";
+        return `${paramName}: ${paramType}`;
+      }).join(", ");
+      const typeSignature = `(${params}): ${returnType}`;
+
+      // 依存関係を抽出
+      const uses: string[] = [];
+      const allExportNames: string[] = [];
+      // 先にすべてのexport名を収集（簡易版: sourceFile全体を走査）
+      ts.forEachChild(sourceFile, child => {
+        if (ts.isFunctionDeclaration(child) && child.name && this.hasExportModifier(child)) {
+          allExportNames.push(child.name.text);
+        } else if (ts.isVariableStatement(child) && this.hasExportModifier(child)) {
+          child.declarationList.declarations.forEach(decl => {
+            if (ts.isIdentifier(decl.name)) {
+              allExportNames.push(decl.name.text);
+            }
+          });
+        }
+      });
+
+      // 関数ボディ内のIdentifierを走査
+      const visitBody = (n: ts.Node) => {
+        if (ts.isIdentifier(n)) {
+          const text = n.text;
+          if (allExportNames.includes(text) && text !== node.name!.text && !uses.includes(text)) {
+            uses.push(text);
+          }
+        }
+        ts.forEachChild(n, visitBody);
+      };
+      if (node.body) {
+        visitBody(node.body);
+      }
+
       return {
         name: node.name.text,
         kind: "function",
         line,
         exported: this.hasExportModifier(node),
+        typeSignature,
+        uses: uses.length > 0 ? uses : undefined,
       };
     }
 
@@ -119,11 +162,25 @@ export class TsRad {
     if (ts.isVariableStatement(node)) {
       const declaration = node.declarationList.declarations[0];
       if (declaration && ts.isIdentifier(declaration.name)) {
+        // 型注釈を取得
+        let typeSignature: string | undefined;
+        if (declaration.type) {
+          typeSignature = declaration.type.getText(sourceFile);
+        } else if (declaration.initializer) {
+          // 初期化子から型を推論（簡易版）
+          if (ts.isStringLiteral(declaration.initializer)) typeSignature = "string";
+          else if (ts.isNumericLiteral(declaration.initializer)) typeSignature = "number";
+          else if (declaration.initializer.kind === ts.SyntaxKind.TrueKeyword || declaration.initializer.kind === ts.SyntaxKind.FalseKeyword) {
+            typeSignature = "boolean";
+          }
+        }
+
         return {
           name: declaration.name.text,
           kind: declaration.type ? "variable" : "const",
           line,
           exported: this.hasExportModifier(node),
+          typeSignature,
         };
       }
     }

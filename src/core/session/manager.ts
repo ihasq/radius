@@ -356,6 +356,18 @@ export class SessionManager {
   }
 
   /**
+   * タグ履歴を取得する（チェーン可視化用）。
+   * 最新のタグが最後になるよう、シーケンス順にソートして返す。
+   */
+  async getTagHistory(): Promise<string[]> {
+    await this.init();
+    const seqs = Object.keys(this.state.seqToTag)
+      .map(s => parseInt(s, 10))
+      .sort((a, b) => a - b);
+    return seqs.map(seq => this.state.seqToTag[seq]);
+  }
+
+  /**
    * セッション状態をディスクに永続化する。
    */
   save(): void {

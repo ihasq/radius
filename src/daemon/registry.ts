@@ -15,6 +15,7 @@ import { handleExtInstall, handleExtList, handleExtRemove } from "../core/comman
 import { handleView } from "../core/commands/view";
 import { handleStrReplace } from "../core/commands/str-replace";
 import { handleCreate } from "../core/commands/create";
+import { handleCreateAll } from "../core/commands/create-all";
 import { handleInsert } from "../core/commands/insert";
 import { handleLspList } from "../core/commands/lsp";
 import { handleGraph } from "../core/commands/graph";
@@ -36,6 +37,7 @@ import { handleComment } from "../core/commands/comment";
 import { handleSnippet } from "../core/commands/snippet";
 import { handleTokens } from "../core/commands/tokens";
 import { handleTask } from "../core/commands/task";
+import { resolve } from "node:path";
 import { findProjectRoot } from "../shared/project";
 import type { IpcRequest, IpcResponse } from "../shared/types";
 import type { LspManager } from "../lsp/manager";
@@ -48,7 +50,7 @@ import type { ChangeLedger } from "../core/agent/ledger";
 import type { ConflictManager } from "../core/agent/conflict";
 import type { DiagnosticRegistry } from "../lsp/diagnostic-registry";
 import type { LspClient } from "../lsp/client";
-import type { TsRadManager } from "../core/ts-service/manager";
+import type { TsRadManager } from "@radius/radls-ts/manager";
 
 /** デーモンコンテキスト。 */
 export interface DaemonContext {
@@ -233,11 +235,55 @@ export const handlers: HandlerDef[] = [
       if (!filePath) {
         return { ok: false, error: "Missing required arg: file" };
       }
-      const projectRoot = findProjectRoot(filePath);
+      const cwd = request.cwd || process.cwd();
+      const absPath = resolve(cwd, filePath);
+      const projectRoot = findProjectRoot(absPath);
       const chainId = (request as any).chainId as string;
       const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
       const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
-      return await handleCreate(request.args, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry);
+
+      // args.file を絶対パスに更新
+      const argsWithAbsPath = { ...request.args, file: absPath };
+      return await handleCreate(argsWithAbsPath, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry);
+    },
+  },
+  {
+    command: "create-all",
+    requiresSession: true,
+    isWriteCommand: true,
+    handler: async (request, ctx) => {
+      // create-all は複数ファイルを対象とするため、最初のファイルから projectRoot を取得
+      const stdin = request.args.stdin as string | undefined;
+      if (!stdin) {
+        return { ok: false, error: "create-all requires --stdin input" };
+      }
+      const cwd = request.cwd || process.cwd();
+
+      // stdin 内の相対パスを絶対パスに変換
+      const lines = stdin.split("\n");
+      const newLines: string[] = [];
+      for (const line of lines) {
+        if (line.startsWith("--- ")) {
+          const relPath = line.slice(4).trim();
+          const absPath = resolve(cwd, relPath);
+          newLines.push(`--- ${absPath}`);
+        } else {
+          newLines.push(line);
+        }
+      }
+      const newStdin = newLines.join("\n");
+
+      // 最初のファイルパスを抽出してprojectRootを決定
+      const firstFileLine = newLines.find(line => line.startsWith("---"));
+      const firstFilePath = firstFileLine ? firstFileLine.slice(4).trim() : cwd;
+      const projectRoot = findProjectRoot(firstFilePath);
+      const chainId = (request as any).chainId as string;
+      const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
+      const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
+
+      // args.stdin を絶対パスに更新
+      const argsWithAbsPaths = { ...request.args, stdin: newStdin };
+      return await handleCreateAll(argsWithAbsPaths, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry);
     },
   },
   {

@@ -53,8 +53,9 @@ describe("view", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("userName");
-    // Should not contain later lines
-    expect(result.stdout).not.toContain("initialize");
+    // Should only show lines 1-3 in the file content section (before "## context")
+    const fileContent = result.stdout.split("## context")[0];
+    expect(fileContent).not.toContain("initialize");
   });
 
   test("truncates large files (>200 lines)", async () => {

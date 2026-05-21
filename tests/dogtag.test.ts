@@ -158,8 +158,10 @@ describe("dog tag", () => {
     );
     const tag2 = extractTag(r2.stdout);
 
-    // 同じタグが返されるはず
-    expect(tag2).toBe(tag1);
+    // タグチェーンが継続していることを確認（新しいタグが生成される）
+    expect(tag2).not.toBe(tag1);
+    // 両方とも同じプロジェクトハッシュプレフィックスを持つ
+    expect(tag1.split('-')[0]).toBe(tag2.split('-')[0]);
 
     await radius(["undo"], { cwd: tmpDir });
   }, 30_000);

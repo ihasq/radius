@@ -5,9 +5,17 @@
  */
 
 import { extname } from "node:path";
+import * as ts from "typescript";
+
+export interface ExportInfo {
+  name: string;
+  kind: string; // variable, function, class, interface, type
+  typeSignature?: string;
+  line: number;
+}
 
 export interface FileContext {
-  exports: string[];
+  exports: ExportInfo[];
   imports: ImportInfo[];
 }
 
@@ -24,6 +32,7 @@ const SUPPORTED_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
 /**
  * ファイル内容から export/import を抽出する。
  * TypeScript/JavaScript ファイルのみ対応。
+ * TypeScript Compiler API を使用して型情報も取得する。
  */
 export function analyzeFileContext(filePath: string, content: string): FileContext | null {
   const ext = extname(filePath);
@@ -31,59 +40,93 @@ export function analyzeFileContext(filePath: string, content: string): FileConte
     return null;
   }
 
-  const exports: string[] = [];
+  const exports: ExportInfo[] = [];
   const imports: ImportInfo[] = [];
 
-  // Export 検出
-  // export function name() → "name()"
-  const funcExports = content.matchAll(/export\s+function\s+(\w+)/g);
-  for (const match of funcExports) {
-    exports.push(`${match[1]}()`);
-  }
+  // TypeScript AST を使用して解析
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    content,
+    ts.ScriptTarget.Latest,
+    true
+  );
 
-  // export const/let/var name → "name"
-  const varExports = content.matchAll(/export\s+(?:const|let|var)\s+(\w+)/g);
-  for (const match of varExports) {
-    exports.push(match[1]);
-  }
-
-  // export class Name → "Name"
-  const classExports = content.matchAll(/export\s+class\s+(\w+)/g);
-  for (const match of classExports) {
-    exports.push(match[1]);
-  }
-
-  // export interface Name → "Name"
-  const interfaceExports = content.matchAll(/export\s+interface\s+(\w+)/g);
-  for (const match of interfaceExports) {
-    exports.push(match[1]);
-  }
-
-  // export type Name → "Name"
-  const typeExports = content.matchAll(/export\s+type\s+(\w+)/g);
-  for (const match of typeExports) {
-    exports.push(match[1]);
-  }
-
-  // export { name1, name2 } → "name1", "name2"
-  const namedExports = content.matchAll(/export\s*\{([^}]+)\}/g);
-  for (const match of namedExports) {
-    const names = match[1].split(",").map((s) => s.trim()).filter((s) => s);
-    for (const name of names) {
-      // "name as alias" の場合は "name" のみ取得
-      const cleanName = name.split(/\s+as\s+/)[0].trim();
-      if (cleanName && !exports.includes(cleanName)) {
-        exports.push(cleanName);
+  function visit(node: ts.Node) {
+    // Export 検出
+    if (ts.isExportDeclaration(node)) {
+      // export { name1, name2 } 形式
+      if (node.exportClause && ts.isNamedExports(node.exportClause)) {
+        for (const element of node.exportClause.elements) {
+          const name = element.name.text;
+          const line = sourceFile.getLineAndCharacterOfPosition(element.getStart()).line + 1;
+          if (!exports.some(e => e.name === name)) {
+            exports.push({ name, kind: "unknown", line });
+          }
+        }
       }
+    } else if (ts.isFunctionDeclaration(node) && node.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword)) {
+      // export function name() { }
+      if (node.name) {
+        const name = node.name.text;
+        const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+
+        // 戻り値型を取得
+        const params = node.parameters.map(p => {
+          const paramName = p.name.getText(sourceFile);
+          const paramType = p.type ? p.type.getText(sourceFile) : "any";
+          return `${paramName}: ${paramType}`;
+        }).join(", ");
+        const returnType = node.type ? node.type.getText(sourceFile) : "void";
+        const typeSignature = `(${params}): ${returnType}`;
+
+        exports.push({ name, kind: "function", typeSignature, line });
+      }
+    } else if (ts.isVariableStatement(node) && node.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword)) {
+      // export const/let/var name = value
+      for (const decl of node.declarationList.declarations) {
+        if (ts.isIdentifier(decl.name)) {
+          const name = decl.name.text;
+          const line = sourceFile.getLineAndCharacterOfPosition(decl.getStart()).line + 1;
+
+          // 型注釈を取得
+          let typeSignature: string | undefined;
+          if (decl.type) {
+            typeSignature = decl.type.getText(sourceFile);
+          } else if (decl.initializer) {
+            // 初期化子から型を推論（簡易版）
+            const init = decl.initializer;
+            if (ts.isStringLiteral(init)) typeSignature = "string";
+            else if (ts.isNumericLiteral(init)) typeSignature = "number";
+            else if (init.kind === ts.SyntaxKind.TrueKeyword || init.kind === ts.SyntaxKind.FalseKeyword) typeSignature = "boolean";
+          }
+
+          exports.push({ name, kind: "variable", typeSignature, line });
+        }
+      }
+    } else if (ts.isClassDeclaration(node) && node.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword)) {
+      // export class Name { }
+      if (node.name) {
+        const name = node.name.text;
+        const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+        exports.push({ name, kind: "class", line });
+      }
+    } else if (ts.isInterfaceDeclaration(node) && node.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword)) {
+      // export interface Name { }
+      const name = node.name.text;
+      const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+      exports.push({ name, kind: "interface", line });
+    } else if (ts.isTypeAliasDeclaration(node) && node.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword)) {
+      // export type Name = ...
+      const name = node.name.text;
+      const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+      const typeSignature = node.type.getText(sourceFile);
+      exports.push({ name, kind: "type", typeSignature, line });
     }
+
+    ts.forEachChild(node, visit);
   }
 
-  // export default → "default"
-  if (/export\s+default/.test(content)) {
-    if (!exports.includes("default")) {
-      exports.push("default");
-    }
-  }
+  visit(sourceFile);
 
   // Import 検出
   // import { name1, name2 } from "path" → { path, symbols: ["name1", "name2"] }
@@ -127,7 +170,16 @@ export function formatContextSection(ctx: FileContext): string {
     lines.push("\n## context");
 
     if (ctx.exports.length > 0) {
-      lines.push(`exports: ${ctx.exports.join(", ")}`);
+      lines.push("exports:");
+      for (const exp of ctx.exports) {
+        let sig = "";
+        if (exp.kind === "function" && exp.typeSignature) {
+          sig = exp.typeSignature;
+        } else if (exp.typeSignature) {
+          sig = `: ${exp.typeSignature}`;
+        }
+        lines.push(`  ${exp.name}${sig} (${exp.kind}, line ${exp.line})`);
+      }
     }
 
     if (ctx.imports.length > 0) {

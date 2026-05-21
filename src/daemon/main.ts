@@ -22,7 +22,7 @@ import { BufferManager } from "../core/buffer/manager";
 import { ChangeLedger } from "../core/agent/ledger";
 import { ConflictManager } from "../core/agent/conflict";
 import { DiagnosticRegistry } from "../lsp/diagnostic-registry";
-import { TsRadManager } from "../core/ts-service/manager";
+import { TsRadManager } from "@radius/radls-ts/manager";
 import { handlers, type DaemonContext } from "./registry";
 import { findCommand, generateUsage, buildRequestWithTag } from "../cli/registry";
 import { readStdin, isStdinAvailable } from "../shared/stdin";
@@ -237,17 +237,59 @@ async function runCliMode(): Promise<void> {
 
   // タグ出力
   if (response.tag) {
+    const tagHistory = response.tagHistory || [];
+    const historyLength = tagHistory.length;
+
     console.log(muted("\n---"));
     console.log(`radius-tag: ${response.tag}`);
     console.log("");
-    console.log(muted("> **`--tag " + response.tag + "` is mandatory for every subsequent command.**"));
-    console.log(muted("> This tag links your edits into a single chain. Other editors monitoring this file"));
-    console.log(muted("> will see your chain as one coherent operation."));
-    console.log(muted(">"));
-    console.log(muted("> **If you need to edit a file that another editor is also modifying:**"));
-    console.log(muted("> Pass `--reason \"why you are overriding\"` — this notifies the other editor"));
-    console.log(muted("> that you have intentionally overwritten their work, and why."));
-    console.log(muted("> `--reason` is a message TO THEM, not to Radius."));
+
+    // チェーン可視化
+    if (historyLength <= 1) {
+      // 初回: Welcome メッセージ + chain: tag1 (矢印なし)
+      if (response.isFirstTag) {
+        console.log(muted("> **Welcome to Radius.** Every edit command returns a radius-tag."));
+        console.log(muted("> Pass it to your next command with --tag to maintain edit continuity."));
+        console.log(muted("> Radius tracks your edits as a chain — if another editor modifies"));
+        console.log(muted("> the same file, you will be notified."));
+        console.log("");
+      }
+
+      console.log(muted(`chain: ${response.tag}`));
+      console.log("");
+      console.log(muted("> Tags rotate on every command. Always pass the latest tag."));
+      console.log(muted("> `--reason` is a note to OTHER editors when you override their work."));
+      console.log("");
+      console.log(muted("> **`--tag " + response.tag + "` is mandatory for every subsequent command.**"));
+      console.log(muted("> This tag links your edits into a single chain. Other editors monitoring this file"));
+      console.log(muted("> will see your chain as one coherent operation."));
+      console.log(muted(">"));
+      console.log(muted("> **If you need to edit a file that another editor is also modifying:**"));
+      console.log(muted("> Pass `--reason \"why you are overriding\"` — this notifies the other editor"));
+      console.log(muted("> that you have intentionally overwritten their work, and why."));
+      console.log(muted("> `--reason` is a message TO THEM, not to Radius."));
+    } else if (historyLength <= 4) {
+      // 2-4回: chain: tag1 → tag2 → tag3 + マーカー
+      const chain = tagHistory.join(" → ");
+      console.log(muted(`chain: ${chain}`));
+
+      // マーカー位置計算（最後のタグの下）
+      const lastTagStartPos = chain.lastIndexOf(response.tag);
+      const spaces = " ".repeat("chain: ".length + lastTagStartPos);
+      const carets = "^".repeat(response.tag.length);
+      console.log(muted(`${spaces}${carets} use this`));
+    } else {
+      // 5回以上: ...→ tagN-2 → tagN-1 → tagN + マーカー
+      const recentTags = tagHistory.slice(-3);
+      const chain = "... → " + recentTags.join(" → ");
+      console.log(muted(`chain: ${chain}`));
+
+      // マーカー位置計算
+      const lastTagStartPos = chain.lastIndexOf(response.tag);
+      const spaces = " ".repeat("chain: ".length + lastTagStartPos);
+      const carets = "^".repeat(response.tag.length);
+      console.log(muted(`${spaces}${carets} use this`));
+    }
   }
 }
 
@@ -406,7 +448,7 @@ for (const handlerDef of handlers) {
         // ファイルパス優先でプロジェクトルートを決定（cwd はフォールバック）
         const cwd = request.cwd || process.cwd();
         const positionalArgs = request.args._ as string[] | undefined;
-        const primaryFile = (request.args.file as string) || positionalArgs?.[0] || "";
+        const primaryFile = (request.args.file as string) || (request.args.path as string) || positionalArgs?.[0] || "";
         const projectRoot = findProjectRoot(primaryFile || cwd);
 
         // Hotfix: タグからチェーンIDを解決
@@ -584,13 +626,13 @@ for (const handlerDef of handlers) {
           const isFirstTag = currentSeq === 0;
 
           let newTag: string;
-          if (isWriteCommand) {
-            // 書き込みコマンド: 無条件に advance() を呼び出す
-            const latestChangesetId = await historyTracker.getLatestChangesetId();
-            newTag = await sessionManager.advance(latestChangesetId || null);
-          } else {
-            // 読み取り専用コマンド: 現在のタグを返す
+          if (currentSeq === 0 && request.tag === undefined) {
+            // 初回コマンド（タグなし）: currentTag() で初期タグを生成
             newTag = await sessionManager.currentTag();
+          } else {
+            // 2回目以降（タグ継続）: 全コマンドで advance() を呼び出す
+            const latestChangesetId = isWriteCommand ? await historyTracker.getLatestChangesetId() : null;
+            newTag = await sessionManager.advance(latestChangesetId);
           }
 
           // コンテキストと影響伝搬を追加
@@ -678,11 +720,15 @@ for (const handlerDef of handlers) {
           // 非推奨警告とvalidateAndRewindからの警告をマージ
           const allWarnings = [...deprecationWarnings, ...warnings];
 
+          // タグ履歴を取得（チェーン可視化用）
+          const tagHistory = await sessionManager.getTagHistory();
+
           return {
             ...response,
             data: finalData,
             tag: newTag,
             isFirstTag,
+            tagHistory,
             warnings: allWarnings.length > 0 ? allWarnings : undefined,
           };
         }

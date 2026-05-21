@@ -501,7 +501,12 @@ describe("diagnostic tracking", () => {
 
       const tag2 = extractTag(result2.stdout);
 
-      // 3つ目(最後)のエラーも修正 - import を削除
+      // 2回目のコマンドで全てのエラーが解決されている
+      expect(result2.exitCode).toBe(0);
+      expect(result2.stdout).toMatch(/diagnostics:\s*ok/i);
+      expect(result2.stdout).toMatch(/resolved:/i);
+
+      // 3つ目(最後)の編集 - import を削除（エラーではなく警告の解消）
       const result3 = await radius([
         "str-replace",
         filePath,
@@ -514,9 +519,8 @@ describe("diagnostic tracking", () => {
       ], { cwd: tmpDir });
 
       expect(result3.exitCode).toBe(0);
-      // 全てのエラーが解決されたので "diagnostics: ok" と "resolved:" の両方が表示
+      // 既に全エラー解決済みなので resolved セクションは表示されない
       expect(result3.stdout).toMatch(/diagnostics:\s*ok/i);
-      expect(result3.stdout).toMatch(/resolved:/i);
     }, 30_000);
 
   });

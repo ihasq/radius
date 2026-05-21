@@ -12,7 +12,7 @@ import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import { SymbolKindNames, type LspDocumentSymbol } from "../../lsp/types";
 import { errorResponse } from "../../shared/output";
-import { TsRad, type RadSymbol } from "../ts-service";
+import { TsRad, type RadSymbol } from "@radius/radls-ts";
 
 /**
  * outline コマンドハンドラ。
@@ -128,7 +128,24 @@ function generateTsRadOutline(
       for (const sym of syms) {
         const indent = "  ".repeat(depth);
         const exported = sym.exported ? "export " : "";
-        output.push(`${indent}${exported}${sym.kind} ${sym.name} [line ${sym.line}]`);
+
+        // 型シグネチャを追加
+        let signature = "";
+        if (sym.typeSignature) {
+          if (sym.kind === "function") {
+            signature = sym.typeSignature; // (params): returnType
+          } else {
+            signature = `: ${sym.typeSignature}`; // : type
+          }
+        }
+
+        // uses: 情報を追加
+        let usesInfo = "";
+        if (sym.uses && sym.uses.length > 0) {
+          usesInfo = ` → uses: ${sym.uses.join(", ")}`;
+        }
+
+        output.push(`${indent}${exported}${sym.kind} ${sym.name}${signature} [line ${sym.line}]${usesInfo}`);
         count++;
 
         if (sym.children && sym.children.length > 0) {

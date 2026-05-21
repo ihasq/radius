@@ -18,7 +18,7 @@ import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
 import { filepath } from "../../shared/colors";
 import { formatContext, errorResponse } from "../../shared/output";
 import type { LspCodeAction, LspRange, LspTextEdit, LspTextDocumentEdit, LspWorkspaceEdit } from "../../lsp/types";
-import type { TsRadManager } from "../ts-service/manager";
+import type { TsRadManager } from "@radius/radls-ts/manager";
 import ts from "typescript";
 
 /**

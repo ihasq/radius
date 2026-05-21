@@ -440,15 +440,16 @@ examples:
   {
     name: "create",
     description: "新規ファイルの作成",
-    usage: "radius create <file> [--content <text> | --stdin]",
-    help: `usage: radius create <file> --content <text> [--tag T]
-       radius create <file> --stdin [--tag T]
+    usage: "radius create <file> [--content <text> | --stdin] [--force]",
+    help: `usage: radius create <file> --content <text> [--force] [--tag T]
+       radius create <file> --stdin [--force] [--tag T]
 
 Create a new file with the specified content.
 
 options:
   --content <text>  File content (required unless --stdin)
   --stdin           Read content from stdin (for multiline content)
+  --force           Overwrite existing file
   --tag <tag>       Session tag from previous command output
 
 stdin mode:
@@ -472,13 +473,18 @@ examples:
     buildRequest: (args, cwd, stdin) => {
       const file = args[0];
       if (!file) {
-        throw "usage: radius create <file> [--content <text> | --stdin]";
+        throw "usage: radius create <file> [--content <text> | --stdin] [--force]";
       }
       const absFile = resolve(cwd, file);
       const parsed = parseArgs(args.slice(1));
 
-      // --stdin モード: --content の代わりに stdin を使用
+      // --force フラグ
+      const force = Boolean(parsed.force);
+
+      // --stdin モード: content の代わりに stdin を使用
+      let stdinContent = parsed.stdin !== undefined ? stdin : undefined;
       let content = parsed.content as string | undefined;
+
       if (parsed.stdin !== undefined) {
         if (!stdin) {
           throw "error: --stdin specified but no input provided";
@@ -486,12 +492,59 @@ examples:
         if (content !== undefined) {
           throw "usage: cannot use both --content and --stdin";
         }
-        content = stdin;
       }
 
       return {
         command: "create",
-        args: { file: absFile, content },
+        args: { file: absFile, content, stdin: stdinContent, force },
+      };
+    },
+  },
+  {
+    name: "create-all",
+    description: "複数ファイルの一括作成",
+    usage: "radius create-all --stdin [--force]",
+    help: `usage: radius create-all --stdin [--force] [--tag T]
+
+Create multiple files at once from stdin with --- delimited format.
+
+options:
+  --stdin   Read file specs from stdin (required)
+  --force   Overwrite existing files
+  --tag <tag>  Session tag from previous command output
+
+stdin format:
+  Each file starts with "--- /path/to/file" followed by its content.
+
+  --- /path/to/file1.ts
+  export const file1 = 1;
+  --- /path/to/file2.ts
+  export const file2 = 2;
+
+examples:
+  cat <<'EOF' | radius create-all --stdin
+  --- src/utils/helper.ts
+  export function helper() {
+    return "helper";
+  }
+  --- src/utils/constants.ts
+  export const PI = 3.14;
+  EOF`,
+    buildRequest: (args, cwd, stdin) => {
+      const parsed = parseArgs(args);
+      const force = Boolean(parsed.force);
+
+      if (parsed.stdin === undefined) {
+        throw "usage: radius create-all --stdin [--force]";
+      }
+
+      if (!stdin) {
+        throw "error: --stdin specified but no input provided";
+      }
+
+      return {
+        command: "create-all",
+        args: { stdin, force },
       };
     },
   },

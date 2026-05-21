@@ -43,6 +43,8 @@ export interface IpcResponse {
   tag?: string;
   /** 初回タグかどうか（first-time note表示用）。 */
   isFirstTag?: boolean;
+  /** タグ履歴（チェーン可視化用、任意）。最新が最後。 */
+  tagHistory?: string[];
   /** 巻き戻り警告メッセージ（任意）。 */
   warnings?: string[];
   /** 書き込みコマンドの変更メタデータ（Phase 16、任意）。 */

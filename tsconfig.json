@@ -7,8 +7,11 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "outDir": "./dist",
-    "rootDir": "./src",
-    "types": ["bun"]
+    "types": ["bun"],
+    "paths": {
+      "@radius/radls-ts": ["./packages/radls-ts/src/index.ts"],
+      "@radius/radls-ts/*": ["./packages/radls-ts/src/*"]
+    }
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "packages/**/*.ts"]
 }

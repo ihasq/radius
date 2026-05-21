@@ -1,4 +1,4 @@
-import { stopAllLsp } from "./helpers/daemon";
+import { stopAllLsp, clearTsRadCache } from "./helpers/daemon";
 /**
  * Phase 17: Code Actions / Format テスト
  *
@@ -38,6 +38,10 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  // Stop all LSP clients to prevent interference
+  await stopAllLsp();
+  // Clear TsRadManager cache to prevent interference
+  await clearTsRadCache();
   // ファイル内容を元に戻す
   for (const [p, content] of originalFiles) {
     writeFileSync(p, content);
@@ -46,7 +50,10 @@ beforeEach(async () => {
     utimesSync(p, now, now);
   }
   // Wait to ensure mtime check interval passes (BufferManager checks every 1s)
-  await new Promise(resolve => setTimeout(resolve, 1100));
+  // Also give ts-rad time to reinitialize after cache clear
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  // Warmup: ping daemon to ensure ts-rad is reinitialized
+  await radius(["ping"], { cwd: tmpDir });
   // テストで作成されるファイルを削除
   const testTxt = join(tmpDir, "test.txt");
   if (existsSync(testTxt)) unlinkSync(testTxt);
