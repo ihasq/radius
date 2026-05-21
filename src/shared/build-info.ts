@@ -4,4 +4,4 @@
  * このファイルはビルドスクリプトによって書き換えられる。
  */
 
-export const BUILD_MODE = "release";
+export const BUILD_MODE: "release" | "dev" = "release";
