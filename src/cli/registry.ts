@@ -1323,6 +1323,33 @@ examples:
       };
     },
   },
+  // Phase 5: VSCode コマンドパレット互換
+  {
+    name: "vscode-cmd",
+    description: "Execute VSCode command palette commands",
+    usage: "radius vscode-cmd <command-id> [args...] | radius vscode-cmd --list",
+    help: `usage: radius vscode-cmd <command-id> [args...]
+       radius vscode-cmd --list
+
+Execute VSCode command palette commands (editor.action.*, workbench.action.*).
+
+options:
+  --list            List all available VSCode commands
+
+examples:
+  radius vscode-cmd editor.action.formatDocument src/main.ts
+  radius vscode-cmd workbench.action.gotoSymbol src/api.ts
+  radius vscode-cmd --list`,
+    buildRequest: (args, _cwd, _stdin) => {
+      return {
+        command: "vscode-cmd",
+        args: {
+          _: args,
+          list: args.includes("--list"),
+        },
+      };
+    },
+  },
 ];
 
 /**

@@ -37,6 +37,7 @@ import { handleComment } from "../core/commands/comment";
 import { handleSnippet } from "../core/commands/snippet";
 import { handleTokens } from "../core/commands/tokens";
 import { handleTask } from "../core/commands/task";
+import { handleVscodeCmd } from "../core/commands/vscode-cmd";
 import { resolve } from "node:path";
 import { findProjectRoot } from "../shared/project";
 import type { IpcRequest, IpcResponse } from "../shared/types";
@@ -490,6 +491,14 @@ export const handlers: HandlerDef[] = [
     handler: async (request, _ctx) => {
       const cwd = request.cwd || process.cwd();
       return await handleTask(request.args, cwd);
+    },
+  },
+  // Phase 5: VSCode コマンドパレット互換
+  {
+    command: "vscode-cmd",
+    requiresSession: true,
+    handler: async (request, ctx) => {
+      return await handleVscodeCmd(request.args, ctx.lspManager, ctx.bufferManager, ctx.tsRadManager);
     },
   },
 ];
