@@ -8,7 +8,7 @@
 import type { IpcResponse } from "../../shared/types";
 import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
-import type { TsRadManager } from "../ts-rad/manager";
+import type { TsRadManager } from "@radius/radls-ts/manager";
 import { getCommandMapping, getAllCommandIds } from "../../vscode-stub/builtin-commands";
 import { getCommands } from "../../vscode-stub/commands";
 import { errorResponse } from "../../shared/output";
