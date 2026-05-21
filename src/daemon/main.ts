@@ -22,7 +22,7 @@ import { BufferManager } from "../core/buffer/manager";
 import { ChangeLedger } from "../core/agent/ledger";
 import { ConflictManager } from "../core/agent/conflict";
 import { DiagnosticRegistry } from "../lsp/diagnostic-registry";
-import { TsRadManager } from "@radius/radls-ts/manager";
+import { TsRadManager } from "@radius/rdsx-ts/manager";
 import { handlers, type DaemonContext } from "./registry";
 import { findCommand, generateUsage, buildRequestWithTag } from "../cli/registry";
 import { readStdin, isStdinAvailable } from "../shared/stdin";
@@ -300,18 +300,33 @@ const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
 /** LSP クライアントを必要とするコマンド一覧（LSP APIを直接呼ぶコマンドのみ） */
 const LSP_COMMANDS = new Set<string>();
 
+import { RdsxRegistry } from "../rdsx/registry";
+import { TsRadProvider } from "../../packages/rdsx-ts/src/provider";
+import { RustAdapter } from "../../packages/rdsx-rs/src/adapter";
+import { CppRdsxAnalyzer } from "../../packages/rdsx-cpp/src/adapter";
+import { GoRdsxAnalyzer } from "../../packages/rdsx-go/src/adapter";
+import { ZigRdsxAnalyzer } from "../../packages/rdsx-zig/src/adapter";
+
 const server = new IpcServer();
 const lspManager = new LspManager();
 const extensionRegistry = new ExtensionRegistry();
 const extensionLoader = new ExtensionLoader(extensionRegistry, lspManager);
 const bufferManager = new BufferManager();
 const tsRadManager = new TsRadManager();
+const rdsxRegistry = new RdsxRegistry();
 const historyTrackers = new Map<string, HistoryTracker>();
 const sessionManagers = new Map<string, SessionManager>();
 const ledgers = new Map<string, ChangeLedger>();
 const conflictManagers = new Map<string, ConflictManager>();
 const diagnosticRegistries = new Map<string, DiagnosticRegistry>();
 let idleTimer: ReturnType<typeof setTimeout>;
+
+// Register RDSX analyzers (activate will check if LSP server is available)
+rdsxRegistry.register(new TsRadProvider());
+rdsxRegistry.register(new RustAdapter("file:///"));
+rdsxRegistry.register(new CppRdsxAnalyzer());
+rdsxRegistry.register(new GoRdsxAnalyzer());
+rdsxRegistry.register(new ZigRdsxAnalyzer());
 
 /** プロジェクトルート・チェーンIDに対応する HistoryTracker を取得 */
 function getHistoryTracker(projectRoot: string, chainId: string): HistoryTracker {
@@ -384,9 +399,8 @@ async function cleanup(): Promise<void> {
   await lspManager.stopAll();
   bufferManager.closeAll();
   tsRadManager.disposeAll();
-  // Phase 3: TsgoProvider など subprocess を使う provider のクリーンアップ
-  const { disposeAllProviders } = await import("../core/radls-resolver");
-  await disposeAllProviders();
+  // Deactivate all RDSX extensions
+  await rdsxRegistry.deactivateAll();
   server.stop();
   try {
     unlinkSync(getPidPath());
@@ -443,6 +457,7 @@ const baseContext: Omit<DaemonContext, "lspClient"> = {
   extensionLoader,
   bufferManager,
   tsRadManager,
+  rdsxRegistry,
 };
 
 // ハンドラ一括登録（セッション管理統合）

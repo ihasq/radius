@@ -13,7 +13,7 @@ import {
 import type { LspManager } from "../../lsp/manager";
 import { resolveLanguageId } from "../../lsp/manager";
 import { findProjectRoot } from "../../shared/project";
-import type { TsRadManager } from "@radius/radls-ts/manager";
+import type { TsRadManager } from "@radius/rdsx-ts/manager";
 
 /** Phase 10 Part B: LRUキャッシュの上限（環境変数で上書き可能） */
 const MAX_OPEN_BUFFERS = parseInt(process.env.RADIUS_MAX_BUFFERS || "50", 10);

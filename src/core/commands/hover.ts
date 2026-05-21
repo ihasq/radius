@@ -14,7 +14,7 @@ import type { LspClient } from "../../lsp/client";
 import type { BufferManager } from "../buffer/manager";
 import type { LspHover, LspMarkupContent } from "../../lsp/types";
 import { errorResponse } from "../../shared/output";
-import type { TsRadManager } from "@radius/radls-ts/manager";
+import type { TsRadManager } from "@radius/rdsx-ts/manager";
 
 /**
  * hover コマンドハンドラ。

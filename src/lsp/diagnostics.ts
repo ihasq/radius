@@ -8,7 +8,7 @@ import { DiagnosticSeverity } from "./types";
 import { findProjectRoot } from "../shared/project";
 import { diagnostic as colorDiagnostic } from "../shared/colors";
 import type { DiagnosticDiff, DiagnosticRegistry } from "./diagnostic-registry";
-import type { TsRadManager } from "@radius/radls-ts/manager";
+import type { TsRadManager } from "@radius/rdsx-ts/manager";
 import ts from "typescript";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -90,7 +90,7 @@ function collectDiagnosticsWithTsRad(
     const service = tsRadManager
       ? tsRadManager.getService(projectRoot, 3)
       : (() => {
-          const { host } = require("@radius/radls-ts/host").createDepth3Host(projectRoot);
+          const { host } = require("@radius/rdsx-ts/host").createDepth3Host(projectRoot);
           return ts.createLanguageService(host);
         })();
     const disposeService = !tsRadManager;

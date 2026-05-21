@@ -2,15 +2,34 @@
  * Rust Language Support via rust-analyzer
  */
 
-import type { RadlsProvider, HoverResult, Reference, Diagnostic, FileEdit } from "@radius/radls-ts/interface";
-import type { RadSymbol } from "@radius/radls-ts";
+import type {
+  RdsxAnalyzer,
+  HoverResult,
+  Reference,
+  Diagnostic,
+  FileEdit,
+} from "@radius/rdsx-ts/interface";
+import type { RadSymbol } from "@radius/rdsx-ts";
 
-export class RustAdapter implements RadlsProvider {
+export class RustAdapter implements RdsxAnalyzer {
+  readonly kind = "analyzer" as const;
+  readonly name = "@radius/rdsx-rs";
+  readonly version = "1.0.0";
+  readonly languageIds = ["rust"];
+
   private process: any = null;
   private rootUri: string;
 
   constructor(rootUri: string) {
     this.rootUri = rootUri;
+  }
+
+  async activate(): Promise<void> {
+    // Rust analyzer activation would start rust-analyzer process
+  }
+
+  async deactivate(): Promise<void> {
+    await this.shutdown();
   }
 
   async getSymbols(filePath: string, _content: string): Promise<RadSymbol[]> {
@@ -38,7 +57,7 @@ export class RustAdapter implements RadlsProvider {
     return [];
   }
 
-  async getDiagnostics(_filePath: string): Promise<Diagnostic[]> {
+  async getDiagnostics(_filePath: string, _content: string): Promise<Diagnostic[]> {
     // Stub: rust-analyzer diagnostics
     return [];
   }
@@ -53,9 +72,5 @@ export class RustAdapter implements RadlsProvider {
       this.process.kill();
       this.process = null;
     }
-  }
-
-  async dispose(): Promise<void> {
-    await this.shutdown();
   }
 }

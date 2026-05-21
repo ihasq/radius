@@ -1,11 +1,11 @@
 /**
- * TsRadProvider - TypeScript 用の RadlsProvider 実装
+ * TsRadProvider - TypeScript 用の RdsxAnalyzer 実装
  *
- * 既存の TsRad クラスをラップして RadlsProvider インタフェースを実装する。
+ * 既存の TsRad クラスをラップして RdsxAnalyzer インタフェースを実装する。
  */
 
 import type {
-  RadlsProvider,
+  RdsxAnalyzer,
   TextEdit,
   HoverResult,
   Reference,
@@ -19,11 +19,24 @@ import { TsRad } from "./index";
 /**
  * TsRadProvider - in-process TypeScript Language Service
  */
-export class TsRadProvider implements RadlsProvider {
+export class TsRadProvider implements RdsxAnalyzer {
+  readonly kind = "analyzer" as const;
+  readonly name = "@radius/rdsx-ts";
+  readonly version = "1.0.0";
+  readonly languageIds = ["typescript", "typescriptreact"];
+
   private tsRad: TsRad;
 
   constructor() {
     this.tsRad = new TsRad();
+  }
+
+  async activate(): Promise<void> {
+    // In-process analyzer, no activation needed
+  }
+
+  async deactivate(): Promise<void> {
+    // TsRad is stateless, no cleanup needed
   }
 
   async getSymbols(filePath: string, content: string): Promise<RadSymbol[]> {
@@ -59,9 +72,5 @@ export class TsRadProvider implements RadlsProvider {
   async getCodeFixes(filePath: string, diagnostic: Diagnostic): Promise<CodeFix[]> {
     // TODO: Phase 2 では未実装
     return [];
-  }
-
-  async dispose(): Promise<void> {
-    // TsRad はステートレスなので何もしない
   }
 }

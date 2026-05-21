@@ -60,9 +60,11 @@ import type { ChangeLedger } from "../core/agent/ledger";
 import type { ConflictManager } from "../core/agent/conflict";
 import type { DiagnosticRegistry } from "../lsp/diagnostic-registry";
 import type { LspClient } from "../lsp/client";
-import type { TsRadManager } from "@radius/radls-ts/manager";
+import type { TsRadManager } from "@radius/rdsx-ts/manager";
 
 /** デーモンコンテキスト。 */
+import type { RdsxRegistry } from "../rdsx/registry";
+
 export interface DaemonContext {
   lspManager: LspManager;
   getHistoryTracker(projectRoot: string, chainId: string): HistoryTracker;
@@ -77,6 +79,8 @@ export interface DaemonContext {
   lspClient: LspClient | null;
   /** TsRadManager - Language Service 永続化マネージャ */
   tsRadManager: TsRadManager;
+  /** RdsxRegistry - Unified extension registry */
+  rdsxRegistry: RdsxRegistry;
 }
 
 /** ハンドラ定義。 */
@@ -414,7 +418,7 @@ export const handlers: HandlerDef[] = [
     command: "outline",
     requiresSession: true,
     handler: async (request, ctx) => {
-      return await handleOutline(request.args, ctx.lspManager, ctx.bufferManager);
+      return await handleOutline(request.args, ctx.lspManager, ctx.bufferManager, ctx.rdsxRegistry);
     },
   },
   {

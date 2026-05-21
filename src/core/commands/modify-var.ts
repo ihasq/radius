@@ -21,7 +21,7 @@ import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
 import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
 import { filepath, added, muted, warning as colorWarning } from "../../shared/colors";
 import { errorResponse } from "../../shared/output";
-import type { TsRadManager } from "@radius/radls-ts/manager";
+import type { TsRadManager } from "@radius/rdsx-ts/manager";
 
 /** リトライロジックの定数（read-varと同期） */
 const INITIAL_WAIT_MS = 1000;

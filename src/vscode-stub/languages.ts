@@ -2,7 +2,7 @@
  * VSCode languages API スタブ
  *
  * language server protocol の registerProvider 系 API を提供する。
- * 実際には radls-resolver に委譲する。
+ * 実際には rdsx-resolver に委譲する。
  */
 
 interface Disposable {

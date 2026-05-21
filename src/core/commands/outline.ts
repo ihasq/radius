@@ -12,8 +12,8 @@ import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import { SymbolKindNames, type LspDocumentSymbol } from "../../lsp/types";
 import { errorResponse } from "../../shared/output";
-import { TsRad, type RadSymbol } from "@radius/radls-ts";
-import { resolveProvider } from "../radls-resolver";
+import { TsRad, type RadSymbol } from "@radius/rdsx-ts";
+import type { RdsxRegistry } from "../../rdsx/registry";
 
 /**
  * outline コマンドハンドラ。
@@ -21,7 +21,8 @@ import { resolveProvider } from "../radls-resolver";
 export async function handleOutline(
   args: Record<string, unknown>,
   lspManager: LspManager,
-  bufferManager: BufferManager
+  bufferManager: BufferManager,
+  rdsxRegistry: RdsxRegistry
 ): Promise<IpcResponse> {
   const file = args.file as string | undefined;
 
@@ -47,10 +48,13 @@ export async function handleOutline(
     return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // RadlsProvider を使用（depth-1: 構文解析のみ）
-  const provider = await resolveProvider(absPath, 1);
-  if (provider) {
-    return await generateProviderOutline(provider, absPath, relativePath, content);
+  // RdsxAnalyzer を使用（構文解析）
+  const languageId = getLanguageId(absPath);
+  if (languageId) {
+    const provider = rdsxRegistry.getAnalyzer(languageId);
+    if (provider) {
+      return await generateProviderOutline(provider, absPath, relativePath, content);
+    }
   }
 
   // LSPクライアントを取得
@@ -61,9 +65,7 @@ export async function handleOutline(
     return generateTextBasedOutline(absPath, relativePath, bufferManager);
   }
 
-  const languageId = getLanguageId(absPath);
-
-  // ドキュメントを開く
+  // ドキュメントを開く（languageIdは既に取得済み）
   client.openDocument(uri, languageId, content);
 
   try {
@@ -105,7 +107,7 @@ export async function handleOutline(
 }
 
 /**
- * RadlsProvider を使用した outline 生成（depth-1: 構文解析のみ）。
+ * RdsxAnalyzer を使用した outline 生成（depth-1: 構文解析のみ）。
  */
 async function generateProviderOutline(
   provider: any,
@@ -158,7 +160,7 @@ async function generateProviderOutline(
     output.push("", `${count} symbol(s)`);
 
     // コンテキスト追加（depth-1: module specifier のみ）
-    // TsRad を直接使用 (getExports/getImports は RadlsProvider に未追加)
+    // TsRad を直接使用 (getExports/getImports は RdsxAnalyzer に未追加)
     const tsRad = new TsRad();
     const sourceFile = tsRad.parseFile(absPath, content);
     const exports = tsRad.getExports(sourceFile);

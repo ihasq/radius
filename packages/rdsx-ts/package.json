@@ -1,0 +1,38 @@
+{
+  "name": "@radius/rdsx-ts",
+  "version": "0.1.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./manager": {
+      "import": "./dist/manager.js",
+      "types": "./dist/manager.d.ts"
+    },
+    "./provider": {
+      "import": "./dist/provider.js",
+      "types": "./dist/provider.d.ts"
+    },
+    "./tsgo-provider": {
+      "import": "./dist/tsgo-provider.js",
+      "types": "./dist/tsgo-provider.d.ts"
+    },
+    "./interface": {
+      "import": "./dist/interface.js",
+      "types": "./dist/interface.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "typescript": "^5.7.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  }
+}

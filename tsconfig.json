@@ -9,10 +9,10 @@
     "outDir": "./dist",
     "types": ["bun"],
     "paths": {
-      "@radius/radls-ts": ["./packages/radls-ts/src/index.ts"],
-      "@radius/radls-ts/*": ["./packages/radls-ts/src/*"],
-      "@radius/radls-rs": ["./packages/radls-rs/src/index.ts"],
-      "@radius/radls-rs/*": ["./packages/radls-rs/src/*"]
+      "@radius/rdsx-ts": ["./packages/rdsx-ts/src/index.ts"],
+      "@radius/rdsx-ts/*": ["./packages/rdsx-ts/src/*"],
+      "@radius/rdsx-rs": ["./packages/rdsx-rs/src/index.ts"],
+      "@radius/rdsx-rs/*": ["./packages/rdsx-rs/src/*"]
     }
   },
   "include": ["src/**/*.ts", "packages/**/*.ts"]

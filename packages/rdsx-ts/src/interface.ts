@@ -70,7 +70,40 @@ export interface CodeFix {
 }
 
 /**
+ * RDSX Extension Kind
+ */
+export type RdsxKind = "analyzer" | "command" | "debugger" | "tool";
+
+/**
+ * Base RDSX Extension interface
+ */
+export interface RdsxExtension {
+  readonly kind: RdsxKind;
+  readonly name: string;
+  readonly version: string;
+  activate(): Promise<void>;
+  deactivate(): Promise<void>;
+}
+
+/**
+ * RdsxAnalyzer - Language service extension
+ */
+export interface RdsxAnalyzer extends RdsxExtension {
+  readonly kind: "analyzer";
+  readonly languageIds: string[];
+
+  getSymbols(filePath: string, content: string): Promise<RadSymbol[]>;
+  format(filePath: string, content: string): Promise<TextEdit[]>;
+  getHoverInfo(filePath: string, line: number, col: number): Promise<HoverResult | null>;
+  findReferences(filePath: string, line: number, col: number): Promise<Reference[]>;
+  rename(filePath: string, line: number, col: number, newName: string): Promise<FileEdit[]>;
+  getDiagnostics(filePath: string, content: string): Promise<Diagnostic[]>;
+  getCodeFixes(filePath: string, diagnostic: Diagnostic): Promise<CodeFix[]>;
+}
+
+/**
  * RadlsProvider - 全言語共通の Language Service インタフェース
+ * @deprecated Use RdsxAnalyzer instead
  */
 export interface RadlsProvider {
   /**

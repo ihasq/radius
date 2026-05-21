@@ -1,5 +1,5 @@
 {
-  "name": "@radius/radls-rs",
+  "name": "@radius/rdsx-rs",
   "version": "0.1.0",
   "description": "Rust language support via rust-analyzer",
   "main": "src/index.ts",

@@ -16,7 +16,7 @@ import type { LspLocation } from "../../lsp/types";
 import type { IpcResponse } from "../../shared/types";
 import type { BufferManager } from "../buffer/manager";
 import { errorResponse } from "../../shared/output";
-import type { TsRadManager } from "@radius/radls-ts/manager";
+import type { TsRadManager } from "@radius/rdsx-ts/manager";
 
 /** 各出現箇所の前後に含めるコンテキスト行数。 */
 const CONTEXT_LINES = 3;

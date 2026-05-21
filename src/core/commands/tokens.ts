@@ -13,7 +13,7 @@ import type { IpcResponse } from "../../shared/types";
 import type { LspClient } from "../../lsp/client";
 import type { BufferManager } from "../buffer/manager";
 import { errorResponse } from "../../shared/output";
-import type { TsRadManager } from "@radius/radls-ts/manager";
+import type { TsRadManager } from "@radius/rdsx-ts/manager";
 
 /** セマンティックトークンタイプ（標準的な定義）。 */
 const TOKEN_TYPES = [

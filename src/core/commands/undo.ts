@@ -7,7 +7,7 @@
 import { LspManager } from "../../lsp/manager";
 import { findProjectRoot } from "../../shared/project";
 import { HistoryTracker } from "../history/tracker";
-import type { TsRadManager } from "@radius/radls-ts/manager";
+import type { TsRadManager } from "@radius/rdsx-ts/manager";
 import type { IpcResponse } from "../../shared/types";
 import { filepath, warning as colorWarning } from "../../shared/colors";
 import { errorResponse } from "../../shared/output";

@@ -12,7 +12,7 @@ import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import { DiagnosticSeverity, type LspDiagnostic } from "../../lsp/types";
 import { errorResponse } from "../../shared/output";
-import type { TsRadManager } from "@radius/radls-ts/manager";
+import type { TsRadManager } from "@radius/rdsx-ts/manager";
 import ts from "typescript";
 
 const MAX_FILES = 50;
