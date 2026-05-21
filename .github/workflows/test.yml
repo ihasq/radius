@@ -131,7 +131,47 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - run: bun test --timeout 60000 tests/multi-agent.test.ts tests/multi-agent-e2e.test.ts tests/change-metadata.test.ts
+      - run: bun test --timeout 60000 tests/multi-agent.test.ts tests/multi-agent-e2e.test.ts tests/change-metadata.test.ts tests/versioned-socket.test.ts
+        env:
+          FORCE_COLOR: "0"
+
+  test-tsrad:
+    needs: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Run ts-rad tests (depth 0-4, context, resources)
+        run: |
+          bun test --timeout 90000 \
+            tests/ts-rad-depth0.test.ts \
+            tests/ts-rad-depth1.test.ts \
+            tests/ts-rad-depth2.test.ts \
+            tests/ts-rad-depth3.test.ts \
+            tests/ts-rad-depth4.test.ts \
+            tests/ts-rad-context.test.ts \
+            tests/ts-rad-resource.test.ts
+        env:
+          FORCE_COLOR: "0"
+
+  test-context:
+    needs: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Run context tests (mostly skipped)
+        run: |
+          bun test --timeout 60000 \
+            tests/context-conventions.test.ts \
+            tests/context-read.test.ts \
+            tests/context-write.test.ts
         env:
           FORCE_COLOR: "0"
 
