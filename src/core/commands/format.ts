@@ -227,11 +227,28 @@ async function handleTsRadFormat(
       semicolons: ts.SemicolonPreference.Insert,
     };
 
-    // フォーマットコンテキストを作成
-    const formatContext = ts.formatting.getFormatContext(formatOptions, { getNewLine: () => "\n" });
+    // Create a minimal Language Service for formatting
+    const languageServiceHost: ts.LanguageServiceHost = {
+      getCompilationSettings: () => ({}),
+      getScriptFileNames: () => [absPath],
+      getScriptVersion: () => "1",
+      getScriptSnapshot: (fileName) => {
+        if (fileName === absPath) {
+          return ts.ScriptSnapshot.fromString(content);
+        }
+        return undefined;
+      },
+      getCurrentDirectory: () => process.cwd(),
+      getDefaultLibFileName: (options) => ts.getDefaultLibFilePath(options),
+      fileExists: () => true,
+      readFile: () => content,
+      getNewLine: () => "\n"
+    };
+
+    const languageService = ts.createLanguageService(languageServiceHost);
 
     // フォーマット実行
-    const edits = ts.formatting.formatDocument(sourceFile, formatContext);
+    const edits = languageService.getFormattingEditsForDocument(absPath, formatOptions);
 
     if (edits.length === 0) {
       return { ok: true, data: "no changes" };

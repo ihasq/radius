@@ -28,7 +28,7 @@ export function createDepth2Host(
   filePath: string,
   content: string,
   projectRoot: string
-): ts.LanguageServiceHost {
+): { host: ts.LanguageServiceHost; updateFile: (fileName: string, content: string) => void } {
   const tsRad = new TsRad();
   const sourceFile = tsRad.parseFile(filePath, content);
 
@@ -185,7 +185,7 @@ function getDefaultOptions(): ts.CompilerOptions {
 export function createDepth3Host(
   projectRoot: string,
   targetFile?: string
-): { host: ts.LanguageServiceHost; fileNames: string[] } {
+): { host: ts.LanguageServiceHost; fileNames: string[]; updateFile: (fileName: string, content: string) => void } {
   const tsconfigPath = join(projectRoot, "tsconfig.json");
 
   // プロジェクト内のファイル一覧を取得
