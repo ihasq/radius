@@ -38,6 +38,15 @@ import { handleSnippet } from "../core/commands/snippet";
 import { handleTokens } from "../core/commands/tokens";
 import { handleTask } from "../core/commands/task";
 import { handleVscodeCmd } from "../core/commands/vscode-cmd";
+import { handleDebugStart } from "../core/commands/debug-start";
+import { handleDebugStop } from "../core/commands/debug-stop";
+import { handleDebugContinue } from "../core/commands/debug-continue";
+import { handleDebugStep } from "../core/commands/debug-step";
+import { handleBreakpoint } from "../core/commands/breakpoint";
+import { handleBreakpointList } from "../core/commands/breakpoint-list";
+import { handleInspect } from "../core/commands/inspect";
+import { handleDebugList } from "../core/commands/debug-list";
+import { handleDebugInfo } from "../core/commands/debug-info";
 import { resolve } from "node:path";
 import { findProjectRoot } from "../shared/project";
 import type { IpcRequest, IpcResponse } from "../shared/types";
@@ -500,6 +509,52 @@ export const handlers: HandlerDef[] = [
     handler: async (request, ctx) => {
       return await handleVscodeCmd(request.args, ctx.lspManager, ctx.bufferManager, ctx.tsRadManager);
     },
+  },
+  // Phase 6: DAP 統合
+  {
+    command: "debug-start",
+    requiresSession: false,
+    handler: async (request) => await handleDebugStart(request.args),
+  },
+  {
+    command: "debug-stop",
+    requiresSession: false,
+    handler: async () => await handleDebugStop(),
+  },
+  {
+    command: "debug-continue",
+    requiresSession: false,
+    handler: async () => await handleDebugContinue(),
+  },
+  {
+    command: "debug-step",
+    requiresSession: false,
+    handler: async () => await handleDebugStep(),
+  },
+  {
+    command: "breakpoint",
+    requiresSession: false,
+    handler: async (request) => await handleBreakpoint(request.args),
+  },
+  {
+    command: "breakpoint-list",
+    requiresSession: false,
+    handler: async () => await handleBreakpointList(),
+  },
+  {
+    command: "inspect",
+    requiresSession: false,
+    handler: async (request) => await handleInspect(request.args),
+  },
+  {
+    command: "debug-list",
+    requiresSession: false,
+    handler: async () => await handleDebugList(),
+  },
+  {
+    command: "debug-info",
+    requiresSession: false,
+    handler: async () => await handleDebugInfo(),
   },
 ];
 

@@ -1350,6 +1350,178 @@ examples:
       };
     },
   },
+  // Phase 6: DAP 統合
+  {
+    name: "debug-start",
+    description: "Start a debug session",
+    usage: "radius debug-start <file>",
+    help: `usage: radius debug-start <file>
+
+Start a DAP debug session for the specified file.
+
+examples:
+  radius debug-start src/main.ts
+  radius debug-start tests/fixtures/debug-project/src/main.ts`,
+    buildRequest: (args, _cwd, _stdin) => {
+      return {
+        command: "debug-start",
+        args: {
+          _: args,
+          file: args[0],
+        },
+      };
+    },
+  },
+  {
+    name: "debug-stop",
+    description: "Stop the current debug session",
+    usage: "radius debug-stop",
+    help: `usage: radius debug-stop
+
+Stop the current DAP debug session.
+
+examples:
+  radius debug-stop`,
+    buildRequest: (_args, _cwd, _stdin) => {
+      return {
+        command: "debug-stop",
+        args: {},
+      };
+    },
+  },
+  {
+    name: "debug-continue",
+    description: "Continue execution in debug session",
+    usage: "radius debug-continue",
+    help: `usage: radius debug-continue
+
+Continue execution until the next breakpoint.
+
+examples:
+  radius debug-continue`,
+    buildRequest: (_args, _cwd, _stdin) => {
+      return {
+        command: "debug-continue",
+        args: {},
+      };
+    },
+  },
+  {
+    name: "debug-step",
+    description: "Step to next line in debug session",
+    usage: "radius debug-step",
+    help: `usage: radius debug-step
+
+Execute the next line of code in the debug session.
+
+examples:
+  radius debug-step`,
+    buildRequest: (_args, _cwd, _stdin) => {
+      return {
+        command: "debug-step",
+        args: {},
+      };
+    },
+  },
+  {
+    name: "breakpoint",
+    description: "Set a breakpoint",
+    usage: "radius breakpoint <file> --line <N>",
+    help: `usage: radius breakpoint <file> --line <N>
+
+Set a breakpoint at the specified file and line number.
+
+options:
+  --line <N>        Line number (required)
+
+examples:
+  radius breakpoint src/main.ts --line 10
+  radius breakpoint tests/fixtures/debug-project/src/main.ts --line 5`,
+    buildRequest: (args, _cwd, _stdin) => {
+      const parsed = parseArgs(args);
+      return {
+        command: "breakpoint",
+        args: {
+          _: args.filter(a => !a.startsWith("--")),
+          file: args.find(a => !a.startsWith("--")),
+          line: parsed.line,
+        },
+      };
+    },
+  },
+  {
+    name: "breakpoint-list",
+    description: "List all breakpoints",
+    usage: "radius breakpoint-list",
+    help: `usage: radius breakpoint-list
+
+List all breakpoints in the current debug session.
+
+examples:
+  radius breakpoint-list`,
+    buildRequest: (_args, _cwd, _stdin) => {
+      return {
+        command: "breakpoint-list",
+        args: {},
+      };
+    },
+  },
+  {
+    name: "inspect",
+    description: "Evaluate an expression in debug context",
+    usage: "radius inspect <expression>",
+    help: `usage: radius inspect <expression>
+
+Evaluate an expression and return its value in the current debug context.
+
+examples:
+  radius inspect myVariable
+  radius inspect "obj.prop"
+  radius inspect "a + b"`,
+    buildRequest: (args, _cwd, _stdin) => {
+      return {
+        command: "inspect",
+        args: {
+          _: args,
+          expression: args.join(" "),
+        },
+      };
+    },
+  },
+  {
+    name: "debug-list",
+    description: "List all debug sessions",
+    usage: "radius debug-list",
+    help: `usage: radius debug-list
+
+List all active debug sessions.
+
+examples:
+  radius debug-list`,
+    buildRequest: (_args, _cwd, _stdin) => {
+      return {
+        command: "debug-list",
+        args: {},
+      };
+    },
+  },
+  {
+    name: "debug-info",
+    description: "Show current debug session info",
+    usage: "radius debug-info",
+    help: `usage: radius debug-info
+
+Show information about the current debug session.
+
+examples:
+  radius debug-info`,
+    buildRequest: (_args, _cwd, _stdin) => {
+      return {
+        command: "debug-info",
+        args: {},
+      };
+    },
+  },
 ];
 
 /**

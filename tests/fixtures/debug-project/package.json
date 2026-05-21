@@ -1,0 +1,13 @@
+{
+  "name": "debug-project",
+  "version": "1.0.0",
+  "description": "Test project for DAP integration",
+  "main": "src/main.ts",
+  "scripts": {
+    "start": "node --inspect src/main.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
