@@ -172,7 +172,7 @@ jobs:
       - name: Install fixture dependencies
         run: |
           cd tests/fixtures/ts-project && bun install
-          cd ../../.. && cd tests/fixtures/heavy-project && npm install
+          cd ../heavy-project && npm install
       - name: Build radiusd binary
         run: bash scripts/build.sh
       - name: Run ts-rad tests (depth 0-4, context, resources)
