@@ -94,6 +94,7 @@ check_resources() {
 cleanup_processes() {
   pkill -9 -f "typescript-language-server" 2>/dev/null || true
   pkill -9 -f "tsserver" 2>/dev/null || true
+  pkill -9 -f "tsgo --lsp" 2>/dev/null || true
   pkill -9 -f "daemon/main" 2>/dev/null || true
   sleep 2
   # ディスク状態もクリア

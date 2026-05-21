@@ -375,16 +375,28 @@ function resetIdleTimer(): void {
   }, IDLE_TIMEOUT_MS);
 }
 
-async function shutdown(): Promise<void> {
+let isShuttingDown = false;
+
+async function cleanup(): Promise<void> {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
   await lspManager.stopAll();
   bufferManager.closeAll();
   tsRadManager.disposeAll();
+  // Phase 3: TsgoProvider など subprocess を使う provider のクリーンアップ
+  const { disposeAllProviders } = await import("../core/radls-resolver");
+  await disposeAllProviders();
   server.stop();
   try {
     unlinkSync(getPidPath());
   } catch {
     // 無視。
   }
+}
+
+async function shutdown(): Promise<void> {
+  await cleanup();
   process.exit(0);
 }
 
@@ -437,9 +449,11 @@ const baseContext: Omit<DaemonContext, "lspClient"> = {
 for (const handlerDef of handlers) {
   if (handlerDef.command === "shutdown") {
     // shutdown は特別処理（非同期シャットダウン）
-    server.registerHandler("shutdown", (): IpcResponse => {
-      setTimeout(() => shutdown(), 100);
-      return { ok: true, data: "shutting down" };
+    server.registerHandler("shutdown", async (): Promise<IpcResponse> => {
+      await cleanup();
+      // cleanup 完了後、少し待ってからプロセス終了（レスポンス送信時間を確保）
+      setTimeout(() => process.exit(0), 100);
+      return { ok: true, data: "shutdown complete" };
     });
   } else {
     server.registerHandler(handlerDef.command, async (request) => {

@@ -15,8 +15,8 @@ export interface RadSymbol {
   kind: string;
   line: number;
   exported: boolean;
-  typeSignature?: string; // 関数の戻り値型、変数の型注釈
-  uses?: string[]; // このシンボルが使用している他のシンボル名
+  typeSignature?: string;
+  uses?: string[];
   children?: RadSymbol[];
 }
 

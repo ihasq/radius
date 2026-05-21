@@ -48,7 +48,7 @@ export async function handleOutline(
   }
 
   // RadlsProvider を使用（depth-1: 構文解析のみ）
-  const provider = resolveProvider(absPath);
+  const provider = await resolveProvider(absPath, 1);
   if (provider) {
     return await generateProviderOutline(provider, absPath, relativePath, content);
   }
