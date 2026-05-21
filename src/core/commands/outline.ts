@@ -13,6 +13,7 @@ import type { BufferManager } from "../buffer/manager";
 import { SymbolKindNames, type LspDocumentSymbol } from "../../lsp/types";
 import { errorResponse } from "../../shared/output";
 import { TsRad, type RadSymbol } from "@radius/radls-ts";
+import { resolveProvider } from "../radls-resolver";
 
 /**
  * outline コマンドハンドラ。
@@ -46,10 +47,10 @@ export async function handleOutline(
     return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // TypeScript ファイルの場合は TsRad を使用（depth-1: 構文解析のみ）
-  const isTypeScript = absPath.endsWith(".ts") || absPath.endsWith(".tsx");
-  if (isTypeScript) {
-    return generateTsRadOutline(absPath, relativePath, content);
+  // RadlsProvider を使用（depth-1: 構文解析のみ）
+  const provider = resolveProvider(absPath);
+  if (provider) {
+    return await generateProviderOutline(provider, absPath, relativePath, content);
   }
 
   // LSPクライアントを取得
@@ -104,17 +105,16 @@ export async function handleOutline(
 }
 
 /**
- * TsRad を使用した TypeScript outline 生成（depth-1: 構文解析のみ）。
+ * RadlsProvider を使用した outline 生成（depth-1: 構文解析のみ）。
  */
-function generateTsRadOutline(
+async function generateProviderOutline(
+  provider: any,
   absPath: string,
   relativePath: string,
   content: string
-): IpcResponse {
+): Promise<IpcResponse> {
   try {
-    const tsRad = new TsRad();
-    const sourceFile = tsRad.parseFile(absPath, content);
-    const symbols = tsRad.getSymbols(sourceFile);
+    const symbols = await provider.getSymbols(absPath, content);
 
     if (symbols.length === 0) {
       return { ok: true, data: "=== TSRAD DEBUG v2 === no symbols found" };
@@ -158,6 +158,9 @@ function generateTsRadOutline(
     output.push("", `${count} symbol(s)`);
 
     // コンテキスト追加（depth-1: module specifier のみ）
+    // TsRad を直接使用 (getExports/getImports は RadlsProvider に未追加)
+    const tsRad = new TsRad();
+    const sourceFile = tsRad.parseFile(absPath, content);
     const exports = tsRad.getExports(sourceFile);
     const imports = tsRad.getImports(sourceFile);
 
