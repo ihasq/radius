@@ -48,6 +48,12 @@ export async function handleView(
   try {
     const lineCount = bufferManager.getLineCount(absPath);
 
+    // コンテキスト情報を先に取得（ヘッダ用）
+    const content = readFileSync(absPath, "utf-8");
+    const ctx = analyzeFileContext(absPath, content);
+    const exportCount = ctx ? ctx.exports.length : 0;
+    const importCount = ctx ? ctx.imports.length : 0;
+
     let startLine = 1;
     let endLine = lineCount;
 
@@ -73,6 +79,13 @@ export async function handleView(
     if (!range && (endLine - startLine + 1) > MAX_LINES) {
       const output: string[] = [];
 
+      // ヘッダ追加
+      const stats: string[] = [`${lineCount} lines`];
+      if (exportCount > 0) stats.push(`${exportCount} export${exportCount > 1 ? "s" : ""}`);
+      if (importCount > 0) stats.push(`${importCount} import${importCount > 1 ? "s" : ""}`);
+      output.push(`view: ${path} (${stats.join(", ")})`);
+      output.push("");
+
       // 先頭100行
       for (let i = 1; i <= HEAD_LINES; i++) {
         const lineNum = String(i).padStart(5, " ");
@@ -92,8 +105,6 @@ export async function handleView(
       }
 
       // コンテキスト追加
-      const content = readFileSync(absPath, "utf-8");
-      const ctx = analyzeFileContext(absPath, content);
       const contextSection = ctx ? formatContextSection(ctx) : "";
 
       return { ok: true, data: output.join("\n") + contextSection };
@@ -101,15 +112,23 @@ export async function handleView(
 
     // 通常出力（200行以下 or 範囲指定あり）
     const output: string[] = [];
+
+    // ヘッダ追加（範囲指定なしの場合のみ）
+    if (!range) {
+      const stats: string[] = [`${lineCount} lines`];
+      if (exportCount > 0) stats.push(`${exportCount} export${exportCount > 1 ? "s" : ""}`);
+      if (importCount > 0) stats.push(`${importCount} import${importCount > 1 ? "s" : ""}`);
+      output.push(`view: ${path} (${stats.join(", ")})`);
+      output.push("");
+    }
+
     for (let i = startLine; i <= endLine; i++) {
       const lineNum = String(i).padStart(5, " ");
       output.push(`${lineNum}: ${bufferManager.getLineContent(absPath, i)}`);
     }
 
     // コンテキスト追加（range 指定時は省略）
-    const content = readFileSync(absPath, "utf-8");
-    const ctx = range ? null : analyzeFileContext(absPath, content);
-    const contextSection = ctx ? formatContextSection(ctx) : "";
+    const contextSection = (ctx && !range) ? formatContextSection(ctx) : "";
 
     return { ok: true, data: output.join("\n") + contextSection };
   } catch (err) {

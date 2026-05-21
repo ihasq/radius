@@ -300,7 +300,7 @@ export function formatDiagnosticDiff(diff: DiagnosticDiff): string {
 
   // サマリ行
   if (errorCount === 0 && warningCount === 0) {
-    output.push("diagnostics: ok");
+    output.push("diagnostics: ok (0 errors, 0 warnings — your edit introduced no type or syntax issues)");
   } else {
     const parts: string[] = [];
     if (errorCount > 0) {
@@ -325,6 +325,14 @@ export function formatDiagnosticDiff(diff: DiagnosticDiff): string {
 
     if (allActive.length > MAX_DISPLAY) {
       output.push(`  ... and ${allActive.length - MAX_DISPLAY} more`);
+    }
+
+    // エラーがある場合は対処法を追加
+    if (errorCount > 0) {
+      output.push("");
+      output.push("> These errors were introduced by your edit. Use `radius fix <file> --tag <tag>` to auto-fix,");
+      output.push("> or `radius str-replace` to manually correct the code.");
+      output.push("> Do NOT proceed with further edits until diagnostics show 0 errors.");
     }
   }
 
@@ -363,7 +371,7 @@ export async function collectAndFormatWithTracking(
   const report = await collectDiagnostics(lspManager, filePath, content, 3000, tsRadManager);
 
   if (!report) {
-    return "diagnostics: unavailable (no LSP for this file type)";
+    return "diagnostics: skipped (not a TypeScript file — static analysis is only available for .ts/.tsx)";
   }
 
   const diff = diagnosticRegistry.update(filePath, report.diagnostics);

@@ -140,11 +140,22 @@ export function formatConventionsSection(conv: ProjectConventions): string {
   }
 
   if (conv.strict !== undefined) {
-    lines.push(`strict: ${conv.strict}`);
+    if (conv.strict) {
+      lines.push(`strict: true (all variables and parameters MUST have explicit type annotations)`);
+    } else {
+      lines.push(`strict: false`);
+    }
   }
 
   if (conv.target) {
-    lines.push(`target: ${conv.target}`);
+    const targetLower = conv.target.toLowerCase();
+    if (targetLower.includes("2020")) {
+      lines.push(`target: ${conv.target} (do NOT use features introduced after ES2020, e.g. Array.at())`);
+    } else if (targetLower.includes("2019")) {
+      lines.push(`target: ${conv.target} (do NOT use features introduced after ES2019, e.g. optional chaining)`);
+    } else {
+      lines.push(`target: ${conv.target}`);
+    }
   }
 
   if (conv.semicolons !== undefined) {

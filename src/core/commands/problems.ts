@@ -70,12 +70,13 @@ export async function handleProblems(
   }
 
   // 出力生成
+  const targetRelative = relative(projectRoot, targetPath) || ".";
+
   if (allDiagnostics.size === 0) {
-    return { ok: true, data: "no problems found" };
+    return { ok: true, data: `problems: ${targetRelative} — 0 errors, 0 warnings (clean)` };
   }
 
   const output: string[] = [];
-  const targetRelative = relative(projectRoot, targetPath) || ".";
   output.push(`problems: ${targetRelative}/`, "");
 
   for (const [file, diagnostics] of allDiagnostics) {

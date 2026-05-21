@@ -228,16 +228,25 @@ async function main(): Promise<void> {
   if (response.tag) {
     console.log(muted("\n---"));
     console.log(`radius-tag: ${response.tag}`);
-    console.log(muted(`[include --tag ${response.tag} to maintain edit history]`));
     console.log("");
-    console.log(muted("> **`--tag` is mandatory.** Every subsequent command in this editing session MUST include `--tag " + response.tag + "`."));
-    console.log(muted("> Omitting `--tag` will start a new, disconnected chain and cause conflict errors."));
-    console.log(muted("> To intentionally start a new chain, pass `--reason \"your reason\"` instead."));
+    console.log(muted("> **`--tag " + response.tag + "` is mandatory for every subsequent command.**"));
+    console.log(muted("> This tag links your edits into a single chain. Other editors monitoring this file"));
+    console.log(muted("> will see your chain as one coherent operation."));
+    console.log(muted(">"));
+    console.log(muted("> **If you need to edit a file that another editor is also modifying:**"));
+    console.log(muted("> Pass `--reason \"why you are overriding\"` — this notifies the other editor"));
+    console.log(muted("> that you have intentionally overwritten their work, and why."));
+    console.log(muted("> `--reason` is a message TO THEM, not to Radius."));
 
     // 初回タグの場合は追加のノートを表示
     if (response.isFirstTag) {
       console.log("");
-      console.log(muted("(This is your first command. Radius will track your edits and enable undo.)"));
+      console.log(muted("> **Welcome to Radius.** Every edit command returns a `radius-tag`. Pass it to your"));
+      console.log(muted("> next command with `--tag` to maintain edit continuity. Radius tracks your edits as"));
+      console.log(muted("> a chain — if another editor modifies the same file, you will be notified."));
+      console.log(muted("> Type errors and warnings appear automatically after each edit in the `diagnostics` section."));
+      console.log(muted("> The `## context` section shows exports, imports, and conventions — use it to understand"));
+      console.log(muted("> the file before editing."));
     }
   }
 }

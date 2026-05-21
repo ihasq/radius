@@ -239,11 +239,15 @@ async function runCliMode(): Promise<void> {
   if (response.tag) {
     console.log(muted("\n---"));
     console.log(`radius-tag: ${response.tag}`);
-    console.log(muted(`[pass --tag ${response.tag} to your next radius command]`));
     console.log("");
-    console.log(muted("> **`--tag` is mandatory.** Every subsequent command in this editing session MUST include `--tag " + response.tag + "`."));
-    console.log(muted("> Omitting `--tag` will start a new, disconnected chain and cause conflict errors."));
-    console.log(muted("> To intentionally start a new chain, pass `--reason \"your reason\"` instead."));
+    console.log(muted("> **`--tag " + response.tag + "` is mandatory for every subsequent command.**"));
+    console.log(muted("> This tag links your edits into a single chain. Other editors monitoring this file"));
+    console.log(muted("> will see your chain as one coherent operation."));
+    console.log(muted(">"));
+    console.log(muted("> **If you need to edit a file that another editor is also modifying:**"));
+    console.log(muted("> Pass `--reason \"why you are overriding\"` — this notifies the other editor"));
+    console.log(muted("> that you have intentionally overwritten their work, and why."));
+    console.log(muted("> `--reason` is a message TO THEM, not to Radius."));
   }
 }
 
