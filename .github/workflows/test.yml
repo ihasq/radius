@@ -30,6 +30,8 @@ jobs:
       - name: Install fixture dependencies
         run: |
           cd tests/fixtures/ts-project && bun install
+      - name: Build radiusd binary
+        run: bash scripts/build.sh
       - run: bun test --timeout 60000 tests/update-crypto.test.ts tests/update-version.test.ts tests/ledger-unit.test.ts tests/colors.test.ts
         env:
           FORCE_COLOR: "0"
@@ -46,6 +48,8 @@ jobs:
       - name: Install fixture dependencies
         run: |
           cd tests/fixtures/ts-project && bun install
+      - name: Build radiusd binary
+        run: bash scripts/build.sh
       - run: bun test --timeout 60000 tests/basic.test.ts tests/history.test.ts tests/dogtag.test.ts
         env:
           FORCE_COLOR: "0"
@@ -90,6 +94,8 @@ jobs:
       - name: Install fixture dependencies
         run: |
           cd tests/fixtures/ts-project && bun install
+      - name: Build radiusd binary
+        run: bash scripts/build.sh
       - run: bun test --timeout 60000 tests/extension-host.test.ts tests/openvsx.test.ts
         env:
           FORCE_COLOR: "0"
@@ -106,6 +112,8 @@ jobs:
       - name: Install fixture dependencies
         run: |
           cd tests/fixtures/ts-project && bun install
+      - name: Build radiusd binary
+        run: bash scripts/build.sh
       - run: bun test --timeout 60000 tests/search-replace.test.ts tests/rename-imports.test.ts tests/graph.test.ts
         env:
           FORCE_COLOR: "0"
@@ -146,6 +154,8 @@ jobs:
       - name: Install fixture dependencies
         run: |
           cd tests/fixtures/ts-project && bun install
+      - name: Build radiusd binary
+        run: bash scripts/build.sh
       - run: bun test --timeout 60000 tests/multi-agent.test.ts tests/multi-agent-e2e.test.ts tests/change-metadata.test.ts tests/versioned-socket.test.ts
         env:
           FORCE_COLOR: "0"
@@ -162,6 +172,8 @@ jobs:
       - name: Install fixture dependencies
         run: |
           cd tests/fixtures/ts-project && bun install
+      - name: Build radiusd binary
+        run: bash scripts/build.sh
       - name: Run ts-rad tests (depth 0-4, context, resources)
         run: |
           bun test --timeout 90000 \
