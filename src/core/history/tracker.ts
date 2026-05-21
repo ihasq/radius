@@ -7,7 +7,7 @@
 
 import { resolve, dirname } from "node:path";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, readdirSync } from "node:fs";
-import { projectHash } from "../../shared/paths";
+import { projectHash, getRadiusHome } from "../../shared/paths";
 import type { Changeset } from "./types";
 
 interface State {
@@ -40,7 +40,7 @@ export class HistoryTracker {
     if (this.historyDir) return; // 既に初期化済み
 
     const hash = await projectHash(this.projectRoot);
-    const radiusHome = resolve(require("os").homedir(), ".radius");
+    const radiusHome = getRadiusHome();
     this.historyDir = resolve(radiusHome, hash, "history", this.chainId);
     this.statePath = resolve(this.historyDir, "state.json");
 

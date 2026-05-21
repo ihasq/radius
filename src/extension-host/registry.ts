@@ -7,6 +7,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join, resolve, extname } from "node:path";
 import { homedir } from "node:os";
+import { getRadiusHome } from "../shared/paths";
 import AdmZip from "adm-zip";
 import { scanExtension } from "./scanner";
 import type { ResolvedExtension, SerializedExtension } from "./types";
@@ -15,7 +16,7 @@ import type { ResolvedExtension, SerializedExtension } from "./types";
  * 拡張のインストール先ディレクトリ。
  */
 function getExtensionsDir(): string {
-  return join(homedir(), ".radius", "extensions");
+  return join(getRadiusHome(), "extensions");
 }
 
 /**

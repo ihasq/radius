@@ -9,6 +9,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import { homedir } from "node:os";
+import { getRadiusHome } from "../shared/paths";
 import type { ExtensionRegistry } from "./registry";
 import type { LspManager } from "../lsp/manager";
 import type { ResolvedExtension } from "./types";
@@ -48,7 +49,7 @@ function loadUserLspConfig(): Record<string, { command: string; args: string[] }
   USER_LSP_CONFIG_LOADED = true;
   const emptyConfig: Record<string, { command: string; args: string[] }> = {};
   USER_LSP_CONFIG = emptyConfig;
-  const configPath = join(homedir(), ".radius", "lsp-servers.json");
+  const configPath = join(getRadiusHome(), "lsp-servers.json");
 
   if (!existsSync(configPath)) {
     return USER_LSP_CONFIG;

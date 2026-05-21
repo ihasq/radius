@@ -1,10 +1,15 @@
 import { resolve } from "node:path";
 import { homedir } from "node:os";
 import { mkdirSync } from "node:fs";
+import { BUILD_MODE } from "./build-info";
 
 /** Radiusホームディレクトリのパスを返す。ディレクトリは作成しない。 */
 export function getRadiusHome(): string {
-  return process.env.RADIUS_HOME || resolve(homedir(), ".radius");
+  const envHome = process.env.RADIUS_HOME;
+  if (envHome) return envHome;
+
+  const base = BUILD_MODE === "dev" ? ".radius-dev" : ".radius";
+  return resolve(homedir(), base);
 }
 
 /** Radiusホームディレクトリを作成し、パスを返す。 */
