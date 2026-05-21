@@ -10,9 +10,13 @@ import {
   PieceTreeTextBufferBuilder,
   PieceTreeBase,
 } from "vscode-textbuffer";
+import type { LspManager } from "../../lsp/manager";
+import { resolveLanguageId } from "../../lsp/manager";
+import { findProjectRoot } from "../../shared/project";
+import type { TsRadManager } from "../ts-service/manager";
 
-/** Phase 10 Part B: LRUキャッシュの上限 */
-const MAX_OPEN_BUFFERS = 50;
+/** Phase 10 Part B: LRUキャッシュの上限（環境変数で上書き可能） */
+const MAX_OPEN_BUFFERS = parseInt(process.env.RADIUS_MAX_BUFFERS || "50", 10);
 
 /** statSync スキップの閾値（ms） */
 const STAT_CHECK_INTERVAL_MS = 1000;
@@ -37,6 +41,20 @@ interface BufferEntry {
 export class BufferManager {
   /** ファイルパス → BufferEntry のマップ */
   private buffers = new Map<string, BufferEntry>();
+  /** LSPマネージャへの参照（循環依存を避けるため遅延注入） */
+  private lspManager: LspManager | null = null;
+  /** TsRadマネージャへの参照（循環依存を避けるため遅延注入） */
+  private tsRadManager: TsRadManager | null = null;
+
+  /** LSPマネージャを設定する（デーモン起動時に呼ばれる） */
+  setLspManager(lspManager: LspManager): void {
+    this.lspManager = lspManager;
+  }
+
+  /** TsRadマネージャを設定する（デーモン起動時に呼ばれる） */
+  setTsRadManager(tsRadManager: TsRadManager): void {
+    this.tsRadManager = tsRadManager;
+  }
 
   /**
    * ファイルのバッファを取得する。
@@ -73,6 +91,14 @@ export class BufferManager {
           if (diskMtime > entry.lastFlushMs) {
             // 外部変更を検知。バッファを再構築する。
             console.log(`[buffer] external change detected: ${filePath}`);
+
+            // TsRadManagerに外部変更を通知
+            if (this.tsRadManager) {
+              const newContent = readFileSync(filePath, "utf-8");
+              const projectRoot = findProjectRoot(filePath);
+              this.tsRadManager.notifyFileChange(projectRoot, filePath, newContent);
+            }
+
             this.buffers.delete(filePath);
             // 新規バッファ構築へフォールスルー
           } else {
@@ -103,6 +129,15 @@ export class BufferManager {
         } else {
           console.log(`[buffer] evicting: ${oldestPath} (dirty: false)`);
         }
+        // LSPにドキュメントクローズを通知
+        if (this.lspManager) {
+          const projectRoot = findProjectRoot(oldestPath);
+          const client = this.lspManager.getExistingClient(projectRoot);
+          if (client) {
+            const uri = `file://${oldestPath}`;
+            client.closeDocument(uri);
+          }
+        }
         this.buffers.delete(oldestPath);
       }
     }
@@ -130,6 +165,27 @@ export class BufferManager {
       lastCheckedMs: Date.now(),
     });
 
+    // LSPにドキュメントオープンを通知
+    if (this.lspManager) {
+      const projectRoot = findProjectRoot(filePath);
+      const client = this.lspManager.getExistingClient(projectRoot);
+      if (client) {
+        const uri = `file://${filePath}`;
+        const languageId = resolveLanguageId(filePath);
+        const wasNewOpen = client.ensureOpen(uri, languageId, content);
+        // 新規オープン時はLSPの解析完了を待つ（同期的に待機）
+        if (wasNewOpen) {
+          Bun.sleepSync(300);
+        }
+      }
+    }
+
+    // TsRadManagerに新規ファイルを通知
+    if (this.tsRadManager) {
+      const projectRoot = findProjectRoot(filePath);
+      this.tsRadManager.notifyFileChange(projectRoot, filePath, content);
+    }
+
     return buffer;
   }
 
@@ -149,12 +205,38 @@ export class BufferManager {
     // Phase 10 Part A: flush後にlastFlushMsを更新
     entry.lastFlushMs = Date.now();
     entry.dirty = false;
+
+    // LSPにドキュメント変更を通知
+    if (this.lspManager) {
+      const projectRoot = findProjectRoot(filePath);
+      const client = this.lspManager.getExistingClient(projectRoot);
+      if (client) {
+        const uri = `file://${filePath}`;
+        const languageId = resolveLanguageId(filePath);
+        client.ensureOpen(uri, languageId, content);
+      }
+    }
+
+    // TsRadManagerにファイル変更を通知
+    if (this.tsRadManager) {
+      const projectRoot = findProjectRoot(filePath);
+      this.tsRadManager.notifyFileChange(projectRoot, filePath, content);
+    }
   }
 
   /**
    * バッファを閉じてメモリから解放する。
    */
   close(filePath: string): void {
+    // LSPにドキュメントクローズを通知
+    if (this.lspManager) {
+      const projectRoot = findProjectRoot(filePath);
+      const client = this.lspManager.getExistingClient(projectRoot);
+      if (client) {
+        const uri = `file://${filePath}`;
+        client.closeDocument(uri);
+      }
+    }
     this.buffers.delete(filePath);
   }
 

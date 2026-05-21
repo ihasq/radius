@@ -1,10 +1,10 @@
+import { stopAllLsp } from "./helpers/daemon";
 /**
  * Part B: 基本コマンドテスト
  */
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { radius, extractTag } from "./helpers/radius";
-import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture, readFixtureFile } from "./helpers/fixtures";
 import { setupTestRadiusHome, cleanupTestRadiusHome } from "./helpers/test-isolation";
 import { existsSync } from "node:fs";
@@ -14,11 +14,10 @@ let tmpDir: string;
 
 beforeAll(async () => {
   setupTestRadiusHome("basic");
-  await startDaemon();
 });
 
 afterAll(async () => {
-  await stopDaemon();
+    await stopAllLsp();
   cleanupTestRadiusHome();
 });
 
@@ -54,9 +53,8 @@ describe("view", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("userName");
-    // Should not contain later line content (function body)
-    expect(result.stdout).not.toContain("function initialize()");
-    // Context section may include "initialize" in exports list (expected)
+    // Should not contain later lines
+    expect(result.stdout).not.toContain("initialize");
   });
 
   test("truncates large files (>200 lines)", async () => {

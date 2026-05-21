@@ -11,6 +11,7 @@ import { searchInContent, type SearchOptions } from "../search/engine";
 import { findFiles } from "../search/glob";
 import { marker } from "../../shared/colors";
 import { errorResponse } from "../../shared/output";
+import { analyzeFileContext, formatContextSection } from "../../shared/context";
 
 export async function handleGrep(request: IpcRequest): Promise<IpcResponse> {
   const { args, cwd } = request;
@@ -118,6 +119,24 @@ export async function handleGrep(request: IpcRequest): Promise<IpcResponse> {
   if (totalMatches >= maxResults) {
     lines.push("");
     lines.push(`(results limited to ${maxResults})`);
+  }
+
+  // コンテキスト追加（5ファイル以下の場合のみ）
+  if (fileMatches.length > 0 && fileMatches.length <= 5) {
+    for (const fileMatch of fileMatches) {
+      try {
+        const content = readFileSync(fileMatch.filePath, "utf-8");
+        const ctx = analyzeFileContext(fileMatch.filePath, content);
+        if (ctx) {
+          const contextSection = formatContextSection(ctx);
+          if (contextSection) {
+            lines.push(contextSection);
+          }
+        }
+      } catch {
+        // コンテキスト生成エラーは無視
+      }
+    }
   }
 
   return { ok: true, data: lines.join("\n") };

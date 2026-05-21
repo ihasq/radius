@@ -15,6 +15,9 @@ export interface RadiusResult {
  * @param args コマンド引数の配列
  * @param options 追加オプション（stdin入力、タイムアウト等）
  */
+// 書き込みコマンド一覧（conflict検出をバイパスするため）
+const WRITE_COMMANDS = ["str-replace", "insert", "create", "replace", "replace-all", "fix", "format", "modify-var", "rename-file"];
+
 export async function radius(
   args: string[],
   options?: {
@@ -22,6 +25,8 @@ export async function radius(
     cwd?: string;
     timeout?: number;
     env?: Record<string, string>;
+    /** conflict検出をテストする場合trueを設定。自動--reason付与を無効化 */
+    skipAutoReason?: boolean;
   }
 ): Promise<RadiusResult> {
   const timeout = options?.timeout ?? 30000;
@@ -29,6 +34,18 @@ export async function radius(
     ? process.cwd().split("/tests")[0]
     : process.cwd();
   const cwd = options?.cwd ?? projectRoot;
+
+  // テスト時は書き込みコマンドに --reason "test" を自動付与（conflict検出バイパス）
+  // skipAutoReason: true の場合は無効化（conflict検出テスト用）
+  let finalArgs = [...args];
+  const command = args[0];
+  if (!options?.skipAutoReason && WRITE_COMMANDS.includes(command) && !args.includes("--reason")) {
+    finalArgs.push("--reason", "test");
+    // DEBUG: confirm --reason is added
+    if (process.env.DEBUG_RADIUS_HELPER) {
+      console.log(`[radius helper] Added --reason to ${command}`);
+    }
+  }
 
   // 環境変数: デフォルトでNO_COLOR=1、RADIUS_HOMEを引き継ぐ
   const env = {
@@ -41,7 +58,14 @@ export async function radius(
     delete env.NO_COLOR;
   }
 
-  const proc = spawn(["bun", "run", `${projectRoot}/src/daemon/main.ts`, "--exec", ...args], {
+  // DEBUG: log final args
+  if (process.env.DEBUG_RADIUS_HELPER) {
+    console.log(`[radius helper] finalArgs:`, JSON.stringify(finalArgs));
+  }
+
+  // Use compiled binary instead of bun run to avoid module cache issues
+  const radiusBin = `${projectRoot}/dist/radius`;
+  const proc = spawn([radiusBin, ...finalArgs], {
     cwd,
     env,
     stdin: options?.stdin ? "pipe" : "inherit",

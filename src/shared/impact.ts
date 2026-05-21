@@ -66,7 +66,7 @@ export async function analyzeImpact(
 
     const uri = `file://${filePath}`;
     const languageId = filePath.endsWith(".ts") || filePath.endsWith(".tsx") ? "typescript" : "javascript";
-    client.openDocument(uri, languageId, content);
+    client.ensureOpen(uri, languageId, content);
 
     // 各シンボルの参照を取得
     const allRefs: ImpactRef[] = [];
@@ -135,7 +135,7 @@ export async function analyzeImpact(
         }
       }
     } finally {
-      client.closeDocument(uri);
+      // BufferManager が document lifecycle を管理するため、closeDocument は不要
     }
 
     if (allRefs.length === 0) {

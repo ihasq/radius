@@ -41,7 +41,8 @@ export async function generateCallGraph(
   let outgoingCalls: Array<{ to: { uri: string; line: number; name: string }; fromRanges: Array<{ line: number }> }> = [];
 
   try {
-    const client = await lspManager.getClient(filePath, projectRoot);
+    // 既存のLSPクライアントのみを使用（新規起動しない）
+    const client = lspManager.getExistingClient(projectRoot);
     if (client) {
       const uri = `file://${filePath}`;
       const items = await client.prepareCallHierarchy(uri, functionPosition);

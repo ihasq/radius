@@ -109,9 +109,19 @@ export async function handleInsert(
     newContent
   );
 
+  // 変更メタデータを計算
+  const insertedLines = text.split("\n");
+  const changeMetadata = {
+    filePath: absPath,
+    startLine: lineNum,
+    endLine: lineNum - 1, // 挿入なので before は空
+    newEndLine: lineNum + insertedLines.length - 1,
+  };
+
   return {
     ok: true,
     data: `inserted at line ${lineNum} in ${filepath(absPath)}\n\n${context}\n${diagnosticsOutput}`,
+    changes: [changeMetadata],
   };
 }
 

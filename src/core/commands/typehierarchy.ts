@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 import { resolve, relative } from "node:path";
 import { findProjectRoot } from "../../shared/project";
 import type { IpcResponse } from "../../shared/types";
-import type { LspManager } from "../../lsp/manager";
+import type { LspClient } from "../../lsp/client";
 import type { BufferManager } from "../buffer/manager";
 import type { LspTypeHierarchyItem } from "../../lsp/types";
 import { errorResponse } from "../../shared/output";
@@ -20,7 +20,7 @@ const MAX_DEPTH = 5;
  */
 export async function handleTypeHierarchy(
   args: Record<string, unknown>,
-  lspManager: LspManager,
+  lspClient: LspClient | null,
   bufferManager: BufferManager
 ): Promise<IpcResponse> {
   const file = args.file as string | undefined;
@@ -43,8 +43,8 @@ export async function handleTypeHierarchy(
   const projectRoot = findProjectRoot(absPath);
   const uri = `file://${absPath}`;
 
-  // LSPクライアントを取得
-  const client = await lspManager.getClient(absPath, projectRoot);
+  // LSPクライアントを使用
+  const client = lspClient;
   if (!client) {
     return { ok: true, data: "type hierarchy unavailable (no LSP for this file type)" };
   }
@@ -82,15 +82,11 @@ export async function handleTypeHierarchy(
     return errorResponse(`Symbol '${symbol}' not found in file`);
   }
 
-  // ドキュメントを開く
-  client.openDocument(uri, languageId, content);
-
   try {
     // 型階層の準備
     const items = await client.prepareTypeHierarchy(uri, symbolPosition);
 
     if (!items || items.length === 0) {
-      client.closeDocument(uri);
       return { ok: true, data: `no type hierarchy available for '${symbol}'` };
     }
 
@@ -99,8 +95,6 @@ export async function handleTypeHierarchy(
     // スーパータイプとサブタイプを取得
     const supertypes = await getHierarchy(client, item, "supertypes", MAX_DEPTH);
     const subtypes = await getHierarchy(client, item, "subtypes", MAX_DEPTH);
-
-    client.closeDocument(uri);
 
     // 出力を構築
     const output: string[] = [`type hierarchy: ${symbol}`, ""];
@@ -122,7 +116,6 @@ export async function handleTypeHierarchy(
 
     return { ok: true, data: output.join("\n") };
   } catch (err) {
-    client.closeDocument(uri);
     // Return graceful error for LSP failures
     return { ok: true, data: `no type hierarchy available for '${symbol}'` };
   }

@@ -112,16 +112,18 @@ export class LspManager {
 
     // 上限到達時、最も古いクライアントを停止
     if (this.clients.size >= MAX_LSP_CLIENTS) {
-      const oldestKey = this.clients.keys().next().value;
-      const oldestClient = this.clients.get(oldestKey);
-      if (oldestClient) {
-        console.log(`[lsp] evicting oldest client: ${oldestKey}`);
-        try {
-          await oldestClient.shutdown();
-        } catch {
-          // shutdown失敗は無視
+      const oldestKey = this.clients.keys().next().value as string | undefined;
+      if (oldestKey) {
+        const oldestClient = this.clients.get(oldestKey);
+        if (oldestClient) {
+          console.log(`[lsp] evicting oldest client: ${oldestKey}`);
+          try {
+            await oldestClient.shutdown();
+          } catch {
+            // shutdown失敗は無視
+          }
+          this.clients.delete(oldestKey);
         }
-        this.clients.delete(oldestKey);
       }
     }
 

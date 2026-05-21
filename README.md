@@ -7,6 +7,11 @@ Radius is a daemon-based code editing system designed for AI coding agents. It p
 ## Features
 
 - **LSP-powered semantic operations**: Variable reading and renaming with full semantic understanding
+- **TypeScript Language Service (ts-rad)**: Direct TypeScript compiler API integration for enhanced TypeScript support
+  - Depth-aware context resolution (0-4 levels): single file → imports → cross-file refs → project-wide → new file detection
+  - Optimized for large projects with file limit safeguards (MAX_PROJECT_FILES = 200)
+  - Smart truncation that preserves operation target files
+  - Stress-tested up to 451 files with stable performance
 - **Code actions and formatting**: Apply LSP quick fixes, refactors, and document formatting
 - **LLM-readable views**: Outline, hover info, diagnostics, type hierarchy, and code lens
 - **Code visualization**: Generate Mermaid graphs for imports, references, and call hierarchies

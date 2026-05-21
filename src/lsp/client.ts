@@ -25,6 +25,7 @@ export class LspClient {
   private pending = new Map<number, PendingRequest>();
   private alive = false;
   private diagnostics = new Map<string, LspDiagnostic[]>();
+  private openDocuments = new Map<string, number>(); // uri → version
 
   constructor(
     private command: string[],
@@ -33,7 +34,13 @@ export class LspClient {
 
   /** alive状態を外部から参照するための読み取り専用プロパティ */
   get isAlive(): boolean {
-    return this.alive;
+    if (!this.alive) return false;
+    if (!this.proc) return false;
+    if (this.proc.exitCode !== null) {
+      this.alive = false;
+      return false;
+    }
+    return true;
   }
 
   /** 言語サーバを起動し、initializeハンドシェイクを完了する。 */
@@ -42,10 +49,21 @@ export class LspClient {
       stdin: "pipe",
       stdout: "pipe",
       stderr: "ignore",
+      env: {
+        ...process.env,
+        NODE_OPTIONS: "--max-old-space-size=512",
+      },
     });
 
     this.reader = new LspReader(this.proc.stdout as ReadableStream<Uint8Array>);
     this.alive = true;
+
+    // プロセス終了を監視
+    this.proc.exited.then(() => {
+      this.alive = false;
+    }).catch(() => {
+      this.alive = false;
+    });
 
     // 受信ループを開始する（非同期、awaitしない）。
     this.readLoop();
@@ -54,6 +72,18 @@ export class LspClient {
     await this.request("initialize", {
       processId: process.pid,
       rootUri: this.rootUri,
+      initializationOptions: {
+        preferences: {
+          disableSuggestions: true,
+          includeCompletionsForModuleExports: false,
+          includeCompletionsWithInsertText: false,
+        },
+        tsserver: {
+          maxTsServerMemory: 512,
+          disableAutomaticTypingAcquisition: true,
+          useSingleInferredProject: true,
+        },
+      },
       capabilities: {
         textDocument: {
           references: { dynamicRegistration: false },
@@ -157,6 +187,31 @@ export class LspClient {
     });
   }
 
+  /**
+   * ドキュメントがLSPに開かれていることを保証する。
+   * 未オープン → didOpen を送信。
+   * オープン済み → didChange を送信。
+   * @returns 新規オープンの場合true、既にオープン済みの場合false
+   */
+  ensureOpen(uri: string, languageId: string, content: string): boolean {
+    if (this.openDocuments.has(uri)) {
+      const version = this.openDocuments.get(uri)! + 1;
+      this.openDocuments.set(uri, version);
+      this.notify("textDocument/didChange", {
+        textDocument: { uri, version },
+        contentChanges: [{ text: content }],
+      });
+      return false; // 既にオープン済み
+    } else {
+      const version = 1;
+      this.openDocuments.set(uri, version);
+      this.notify("textDocument/didOpen", {
+        textDocument: { uri, languageId, version, text: content },
+      });
+      return true; // 新規オープン
+    }
+  }
+
   /** ドキュメントの変更通知を送信する（診断トリガー用）。 */
   changeDocument(uri: string, text: string, version: number = 2): void {
     this.notify("textDocument/didChange", {
@@ -176,9 +231,16 @@ export class LspClient {
 
   /** ドキュメントを閉じる通知を送信する（A2: LSP状態リセット用）。 */
   closeDocument(uri: string): void {
+    if (!this.openDocuments.has(uri)) return; // 未オープンなら何もしない
     this.notify("textDocument/didClose", {
       textDocument: { uri },
     });
+    this.openDocuments.delete(uri);
+  }
+
+  /** ドキュメントがオープンされているか確認する。 */
+  isDocumentOpen(uri: string): boolean {
+    return this.openDocuments.has(uri);
   }
 
   /** ドキュメント内のシンボル一覧を取得する。 */
@@ -369,6 +431,11 @@ export class LspClient {
   /** 言語サーバを停止する。 */
   async shutdown(): Promise<void> {
     if (!this.proc) return;
+
+    // 全オープンドキュメントを閉じる
+    for (const uri of [...this.openDocuments.keys()]) {
+      this.closeDocument(uri);
+    }
 
     // A2: shutdown時のpending全reject
     this.alive = false;

@@ -55,3 +55,34 @@ target/
 # VitePress
 docs/.vitepress/dist
 docs/.vitepress/cache
+
+# Temporary test results and debug files
+test-results*.txt
+test-results*.log
+*.txt
+!tests/**/*.txt
+audit-result.txt
+review.txt
+res.md
+res.txt
+tee
+/tmp/
+
+# Stress test fixtures (large generated fixtures)
+tests/fixtures/medium-project/
+tests/fixtures/large-project/
+tests/fixtures/xlarge-project/
+tests/fixtures/heavy-project/
+
+# Development scripts and reports
+scripts/audit-*.sh
+review.sh
+*_REPORT.md
+*-report.md
+docs/*-summary.md
+docs/*-report.md
+
+# Debug logs
+/tmp/tsrad-debug.log
+/tmp/depth3-files.log
+/tmp/stress-test-progress.log

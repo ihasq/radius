@@ -12,6 +12,8 @@ import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import { DiagnosticSeverity, type LspDiagnostic } from "../../lsp/types";
 import { errorResponse } from "../../shared/output";
+import type { TsRadManager } from "../ts-service/manager";
+import ts from "typescript";
 
 const MAX_FILES = 50;
 
@@ -22,7 +24,8 @@ export async function handleProblems(
   args: Record<string, unknown>,
   lspManager: LspManager,
   bufferManager: BufferManager,
-  cwd: string
+  cwd: string,
+  tsRadManager: TsRadManager
 ): Promise<IpcResponse> {
   const path = args.path as string | undefined;
 
@@ -52,7 +55,7 @@ export async function handleProblems(
   let fileCount = 0;
 
   for (const file of files) {
-    const diagnostics = await getDiagnosticsForFile(file, projectRoot, lspManager, bufferManager);
+    const diagnostics = await getDiagnosticsForFile(file, projectRoot, lspManager, bufferManager, tsRadManager);
     if (diagnostics.length > 0) {
       allDiagnostics.set(file, diagnostics);
       fileCount++;
@@ -105,15 +108,9 @@ async function getDiagnosticsForFile(
   file: string,
   projectRoot: string,
   lspManager: LspManager,
-  bufferManager: BufferManager
+  bufferManager: BufferManager,
+  tsRadManager: TsRadManager
 ): Promise<LspDiagnostic[]> {
-  const client = await lspManager.getClient(file, projectRoot);
-  if (!client) {
-    return [];
-  }
-
-  const uri = `file://${file}`;
-
   // ファイル内容を取得
   let content: string;
   try {
@@ -122,18 +119,101 @@ async function getDiagnosticsForFile(
     return [];
   }
 
-  const languageId = getLanguageId(file);
+  // TypeScript/JavaScript ファイルは ts-rad で診断
+  const ext = file.split(".").pop()?.toLowerCase();
+  if (ext === "ts" || ext === "tsx" || ext === "js" || ext === "jsx") {
+    return getDiagnosticsWithTsRad(file, projectRoot, tsRadManager);
+  }
 
-  // ドキュメントを開いて診断を待つ
-  client.openDocument(uri, languageId, content);
-  // Trigger diagnostic calculation by notifying change
-  client.changeDocument(uri, content, 2);
+  // その他の言語は LSP を使用
+  const client = lspManager.getExistingClient(projectRoot);
+  if (!client) {
+    return [];
+  }
+
+  const uri = `file://${file}`;
+
+  // 診断を待つ
   await new Promise(resolve => setTimeout(resolve, 500));
 
   const diagnostics = client.getDiagnostics(uri);
-  client.closeDocument(uri);
 
   return diagnostics;
+}
+
+/**
+ * ts-rad (in-process Language Service) を使用して診断情報を取得する。
+ */
+function getDiagnosticsWithTsRad(
+  filePath: string,
+  projectRoot: string,
+  tsRadManager: TsRadManager
+): LspDiagnostic[] {
+  const tsconfigPath = join(projectRoot, "tsconfig.json");
+  if (!existsSync(tsconfigPath)) {
+    return [];
+  }
+
+  try {
+    const service = tsRadManager.getService(projectRoot, 3);
+
+    const syntactic = service.getSyntacticDiagnostics(filePath);
+    const semantic = service.getSemanticDiagnostics(filePath);
+    const allDiagnostics = [...syntactic, ...semantic];
+
+    // TypeScript診断を LSP 形式に変換
+    return allDiagnostics.map(d => convertTsDiagnosticToLsp(d));
+  } catch (err) {
+    return [];
+  }
+}
+
+/**
+ * TypeScript 診断を LSP 診断形式に変換する。
+ */
+function convertTsDiagnosticToLsp(d: ts.Diagnostic): LspDiagnostic {
+  const file = d.file;
+  let start = { line: 0, character: 0 };
+  let end = { line: 0, character: 0 };
+
+  if (file && d.start !== undefined) {
+    const startPos = file.getLineAndCharacterOfPosition(d.start);
+    start = { line: startPos.line, character: startPos.character };
+
+    if (d.length !== undefined) {
+      const endPos = file.getLineAndCharacterOfPosition(d.start + d.length);
+      end = { line: endPos.line, character: endPos.character };
+    } else {
+      end = start;
+    }
+  }
+
+  // Severity 変換
+  let severity: number;
+  switch (d.category) {
+    case ts.DiagnosticCategory.Error:
+      severity = DiagnosticSeverity.Error;
+      break;
+    case ts.DiagnosticCategory.Warning:
+      severity = DiagnosticSeverity.Warning;
+      break;
+    case ts.DiagnosticCategory.Message:
+      severity = DiagnosticSeverity.Information;
+      break;
+    case ts.DiagnosticCategory.Suggestion:
+      severity = DiagnosticSeverity.Hint;
+      break;
+    default:
+      severity = DiagnosticSeverity.Information;
+  }
+
+  return {
+    range: { start, end },
+    severity,
+    code: d.code,
+    message: ts.flattenDiagnosticMessageText(d.messageText, "\n"),
+    source: "ts-rad",
+  };
 }
 
 /**

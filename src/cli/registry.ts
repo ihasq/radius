@@ -155,18 +155,20 @@ examples:
     name: "modify-var",
     description: "変数名の一括変更",
     usage: "radius modify-var <file> --from <old> --to <new>",
-    help: `usage: radius modify-var <file> --from <old> --to <new> [--tag T]
+    help: `usage: radius modify-var <file> --from <old> --to <new> [--tag T] [--reason R]
 
 Rename a variable across all its references using LSP.
 
 options:
-  --from <name>  Current variable name (required)
-  --to <name>    New variable name (required)
-  --tag <tag>    Session tag from previous command output
+  --from <name>    Current variable name (required)
+  --to <name>      New variable name (required)
+  --reason <text>  Explanation for the change (required if conflicting with other agents)
+  --tag <tag>      Session tag from previous command output
 
 examples:
   radius modify-var src/api.ts --from httpClient --to apiClient
-  radius modify-var src/utils.ts --from PI --to PI_VALUE --tag abc1-XXXXXXXX`,
+  radius modify-var src/utils.ts --from PI --to PI_VALUE --tag abc1-XXXXXXXX
+  radius modify-var src/api.ts --from foo --to bar --reason "fixing naming"`,
     buildRequest: (args, cwd, _stdin) => {
       const file = args[0];
       const parsed = parseArgs(args.slice(1));
@@ -176,7 +178,7 @@ examples:
       const absFile = resolve(cwd, file);
       return {
         command: "modify-var",
-        args: { file: absFile, from: parsed.from, to: parsed.to },
+        args: { file: absFile, from: parsed.from, to: parsed.to, reason: parsed.reason },
       };
     },
   },
@@ -250,19 +252,22 @@ examples:
     name: "rename-file",
     description: "ファイルのリネームとimport更新",
     usage: "radius rename-file <oldPath> <newPath>",
-    help: `usage: radius rename-file <oldPath> <newPath> [--tag T]
+    help: `usage: radius rename-file <oldPath> <newPath> [--tag T] [--reason R]
 
 Rename a file and update all import statements across the project.
 
 options:
-  --tag <tag>    Session tag from previous command output
+  --reason <text>  Explanation for the change (required if conflicting with other agents)
+  --tag <tag>      Session tag from previous command output
 
 examples:
   radius rename-file src/api.ts src/apiClient.ts
-  radius rename-file src/utils/helpers.ts src/lib/helpers.ts --tag abc1-XXXXXXXX`,
+  radius rename-file src/utils/helpers.ts src/lib/helpers.ts --tag abc1-XXXXXXXX
+  radius rename-file src/api.ts src/client.ts --reason "clearer naming"`,
     buildRequest: (args, cwd, _stdin) => {
       const oldPath = args[0];
       const newPath = args[1];
+      const parsed = parseArgs(args.slice(2));
       if (!oldPath || !newPath) {
         throw "usage: radius rename-file <oldPath> <newPath>";
       }
@@ -270,7 +275,7 @@ examples:
       const absNewPath = resolve(cwd, newPath);
       return {
         command: "rename-file",
-        args: { file: absOldPath, to: absNewPath },
+        args: { file: absOldPath, to: absNewPath, reason: parsed.reason },
       };
     },
   },
@@ -928,25 +933,27 @@ examples:
     name: "format",
     description: "LSPフォーマットの適用",
     usage: "radius format <file>",
-    help: `usage: radius format <file> [--tag T]
+    help: `usage: radius format <file> [--tag T] [--reason R]
 
 Apply LSP formatting to a file.
 
 options:
-  --tag <tag>   Session tag from previous command output
+  --tag <tag>     Session tag from previous command output
+  --reason <why>  Override conflict detection with explanation
 
 examples:
   radius format src/api.ts
   radius format src/utils.ts --tag abc1-XXXXXXXX`,
     buildRequest: (args, cwd, _stdin) => {
       const file = args[0];
+      const parsed = parseArgs(args.slice(1));
       if (!file) {
         throw "usage: radius format <file>";
       }
       const absFile = resolve(cwd, file);
       return {
         command: "format",
-        args: { file: absFile },
+        args: { file: absFile, reason: parsed.reason },
       };
     },
   },

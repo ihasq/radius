@@ -5,29 +5,177 @@
  */
 
 import { existsSync } from "node:fs";
-import { resolve, relative } from "node:path";
+import { resolve, relative, join } from "node:path";
 import { findProjectRoot } from "../../shared/project";
 import type { HistoryTracker } from "../history/tracker";
 import type { Changeset } from "../history/types";
 import type { IpcResponse, ChangeMetadata } from "../../shared/types";
 import type { LspManager } from "../../lsp/manager";
-import { resolveLanguageId } from "../../lsp/manager";
+import type { LspClient } from "../../lsp/client";
 import type { BufferManager } from "../buffer/manager";
 import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
 import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
 import { filepath } from "../../shared/colors";
 import { formatContext, errorResponse } from "../../shared/output";
-import type { LspCodeAction, LspRange, LspTextEdit, LspWorkspaceEdit } from "../../lsp/types";
+import type { LspCodeAction, LspRange, LspTextEdit, LspTextDocumentEdit, LspWorkspaceEdit } from "../../lsp/types";
+import type { TsRadManager } from "../ts-service/manager";
+import ts from "typescript";
+
+/**
+ * ts-rad を使用してコードアクションを取得する。
+ */
+async function getTsRadCodeActions(
+  filePath: string,
+  projectRoot: string,
+  line: number | string | undefined,
+  lines: string[],
+  tsRadManager: TsRadManager
+): Promise<LspCodeAction[] | null> {
+  const tsconfigPath = join(projectRoot, "tsconfig.json");
+  if (!existsSync(tsconfigPath)) {
+    return null;
+  }
+
+  try {
+    const service = tsRadManager.getService(projectRoot, 3);
+
+    try {
+      // 診断情報を取得
+      const syntactic = service.getSyntacticDiagnostics(filePath);
+      const semantic = service.getSemanticDiagnostics(filePath);
+      const suggestion = service.getSuggestionDiagnostics(filePath);
+      const allDiagnostics = [...syntactic, ...semantic, ...suggestion];
+
+      // 行指定がある場合はフィルタ
+      let targetDiagnostics = allDiagnostics;
+      if (line !== undefined) {
+        const lineNum = typeof line === "string" ? parseInt(line, 10) - 1 : (line as number) - 1;
+        targetDiagnostics = allDiagnostics.filter(d => {
+          if (d.file && d.start !== undefined) {
+            const pos = d.file.getLineAndCharacterOfPosition(d.start);
+            return pos.line === lineNum;
+          }
+          return false;
+        });
+      }
+
+      // 各診断に対してコードフィックスを取得
+      const actions: LspCodeAction[] = [];
+      const seenTitles = new Set<string>();
+
+      for (const diag of targetDiagnostics) {
+        if (diag.start === undefined || diag.length === undefined) continue;
+
+        const fixes = service.getCodeFixesAtPosition(
+          filePath,
+          diag.start,
+          diag.start + diag.length,
+          [diag.code as number],
+          {},
+          {}
+        );
+
+        for (const fix of fixes) {
+          // 重複を避ける
+          if (seenTitles.has(fix.description)) continue;
+          seenTitles.add(fix.description);
+
+          // TypeScript CodeFixAction を LSP CodeAction に変換
+          const lspAction: LspCodeAction = {
+            title: fix.description,
+            kind: "quickfix",
+            edit: convertTsChangesToWorkspaceEdit(fix.changes, filePath),
+            diagnostics: [{
+              range: {
+                start: {
+                  line: diag.file!.getLineAndCharacterOfPosition(diag.start!).line,
+                  character: diag.file!.getLineAndCharacterOfPosition(diag.start!).character
+                },
+                end: {
+                  line: diag.file!.getLineAndCharacterOfPosition(diag.start! + diag.length!).line,
+                  character: diag.file!.getLineAndCharacterOfPosition(diag.start! + diag.length!).character
+                }
+              },
+              severity: 1,
+              message: ts.flattenDiagnosticMessageText(diag.messageText, "\n"),
+              source: "ts-rad"
+            }]
+          };
+
+          actions.push(lspAction);
+        }
+      }
+
+      return actions;
+    } catch (err) {
+      // エラー時は null を返す（呼び出し元で処理）
+      return null;
+    }
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
+ * TypeScript の FileTextChanges を LSP WorkspaceEdit に変換する。
+ */
+function convertTsChangesToWorkspaceEdit(
+  changes: readonly ts.FileTextChanges[],
+  filePath: string
+): LspWorkspaceEdit {
+  const documentChanges: LspTextDocumentEdit[] = [];
+
+  for (const fileChange of changes) {
+    const edits: LspTextEdit[] = [];
+
+    // ファイルを読み込んで SourceFile を作成
+    let sourceFile: ts.SourceFile;
+    try {
+      const fileContent = require("node:fs").readFileSync(fileChange.fileName, "utf-8");
+      sourceFile = ts.createSourceFile(
+        fileChange.fileName,
+        fileContent,
+        ts.ScriptTarget.Latest,
+        true
+      );
+    } catch {
+      // ファイル読み込み失敗時はスキップ
+      continue;
+    }
+
+    for (const textChange of fileChange.textChanges) {
+      const start = sourceFile.getLineAndCharacterOfPosition(textChange.span.start);
+      const end = sourceFile.getLineAndCharacterOfPosition(textChange.span.start + textChange.span.length);
+
+      edits.push({
+        range: {
+          start: { line: start.line, character: start.character },
+          end: { line: end.line, character: end.character }
+        },
+        newText: textChange.newText
+      });
+    }
+
+    documentChanges.push({
+      textDocument: { uri: `file://${fileChange.fileName}`, version: null },
+      edits
+    });
+  }
+
+  return { documentChanges };
+}
 
 /**
  * fix コマンドハンドラ。
  */
 export async function handleFix(
   args: Record<string, unknown>,
+  lspClient: LspClient | null,
   lspManager: LspManager,
   historyTracker: HistoryTracker,
   bufferManager: BufferManager,
-  diagnosticRegistry: DiagnosticRegistry
+  diagnosticRegistry: DiagnosticRegistry,
+  tsRadManager: TsRadManager
 ): Promise<IpcResponse> {
   const file = args.file as string | undefined;
   const list = args.list as boolean | undefined;
@@ -47,12 +195,6 @@ export async function handleFix(
   const projectRoot = findProjectRoot(absPath);
   const uri = `file://${absPath}`;
 
-  // LSPクライアントを取得
-  const client = await lspManager.getClient(absPath, projectRoot);
-  if (!client) {
-    return { ok: true, data: "code actions unavailable (no LSP for this file type)" };
-  }
-
   // ファイル内容を取得
   let content: string;
   try {
@@ -62,43 +204,65 @@ export async function handleFix(
   }
 
   const lines = content.split("\n");
-  const languageId = resolveLanguageId(absPath);
 
-  // ドキュメントを開く
-  client.openDocument(uri, languageId, content);
-  // Trigger diagnostic calculation by notifying change
-  client.changeDocument(uri, content, 2);
+  // TypeScript/JavaScript ファイルは ts-rad でコードアクション取得
+  const ext = absPath.split(".").pop()?.toLowerCase();
+  const isTypeScript = ext === "ts" || ext === "tsx" || ext === "js" || ext === "jsx";
 
-  // 診断情報を待つ（TypeScript LSP は初期化に時間がかかる場合がある）
-  await new Promise(resolve => setTimeout(resolve, 1500));
+  let actions: LspCodeAction[];
 
-  try {
-    // 行範囲を決定
-    let range: LspRange;
-    if (line !== undefined) {
-      const lineNum = typeof line === "string" ? parseInt(line, 10) - 1 : line - 1;
-      range = {
-        start: { line: lineNum, character: 0 },
-        end: { line: lineNum, character: lines[lineNum]?.length || 0 }
-      };
-    } else {
-      range = {
-        start: { line: 0, character: 0 },
-        end: { line: lines.length - 1, character: lines[lines.length - 1]?.length || 0 }
-      };
+  if (isTypeScript) {
+    // ts-rad を使用
+    const tsRadActions = await getTsRadCodeActions(absPath, projectRoot, line, lines, tsRadManager);
+    if (tsRadActions === null) {
+      return { ok: true, data: "code actions unavailable (ts-rad initialization failed)" };
+    }
+    actions = tsRadActions;
+  } else {
+    // LSPクライアントを使用
+    const client = lspClient;
+    if (!client) {
+      return { ok: true, data: "code actions unavailable (no LSP for this file type)" };
     }
 
-    // 診断情報を取得
-    const diagnostics = client.getDiagnostics(uri);
+    // 診断情報を待つ
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
-    // コードアクションを取得
-    const actions = await client.codeAction(uri, range, diagnostics);
+    try {
+      // 行範囲を決定
+      let range: LspRange;
+      if (line !== undefined) {
+        const lineNum = typeof line === "string" ? parseInt(line, 10) - 1 : line - 1;
+        range = {
+          start: { line: lineNum, character: 0 },
+          end: { line: lineNum, character: lines[lineNum]?.length || 0 }
+        };
+      } else {
+        range = {
+          start: { line: 0, character: 0 },
+          end: { line: lines.length - 1, character: lines[lines.length - 1]?.length || 0 }
+        };
+      }
+
+      // 診断情報を取得
+      const diagnostics = client.getDiagnostics(uri);
+
+      // コードアクションを取得
+      actions = await client.codeAction(uri, range, diagnostics);
+    } catch (err) {
+      return errorResponse(`Failed to get code actions: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  try {
 
     // --list モード
     if (list) {
-      client.closeDocument(uri);
-
       if (actions.length === 0) {
+        // 非TypeScriptファイルでアクションが0の場合は未サポート扱い
+        if (!isTypeScript) {
+          return { ok: true, data: "code actions unavailable (no LSP for this file type)" };
+        }
         return { ok: true, data: "no code actions available" };
       }
 
@@ -122,7 +286,10 @@ export async function handleFix(
 
     // 適用モード
     if (actions.length === 0) {
-      client.closeDocument(uri);
+      // 非TypeScriptファイルでアクションが0の場合は未サポート扱い
+      if (!isTypeScript) {
+        return { ok: true, data: "code actions unavailable (no LSP for this file type)" };
+      }
       return { ok: true, data: "no code actions available" };
     }
 
@@ -131,7 +298,6 @@ export async function handleFix(
     if (id !== undefined) {
       const idx = parseInt(id, 10) - 1;
       if (idx < 0 || idx >= actions.length) {
-        client.closeDocument(uri);
         return errorResponse(`Invalid action id: ${id}`);
       }
       selectedAction = actions[idx];
@@ -141,7 +307,6 @@ export async function handleFix(
 
     // アクションに適用可能な編集がない場合は早期リターン
     if (!selectedAction.edit && !selectedAction.command) {
-      client.closeDocument(uri);
       return { ok: true, data: `no applicable edit for action: ${selectedAction.title}` };
     }
 
@@ -157,21 +322,28 @@ export async function handleFix(
       );
 
       if (!editResult.ok) {
-        client.closeDocument(uri);
         return errorResponse(editResult.error!);
       }
 
       changeMetadata = editResult.metadata ?? null;
     } else if (selectedAction.command) {
-      // コマンド実行
-      try {
-        await client.executeCommand(
-          selectedAction.command.command,
-          selectedAction.command.arguments
-        );
-      } catch (err) {
-        client.closeDocument(uri);
-        return errorResponse(`Failed to execute command: ${err}`);
+      // コマンド実行（LSPのみ）
+      if (!isTypeScript) {
+        const client = lspClient;
+        if (!client) {
+          return errorResponse("Command execution requires LSP client");
+        }
+        try {
+          await client.executeCommand(
+            selectedAction.command.command,
+            selectedAction.command.arguments
+          );
+        } catch (err) {
+          return errorResponse(`Failed to execute command: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      } else {
+        // ts-rad はコマンド実行をサポートしない
+        return { ok: true, data: `no applicable edit for action: ${selectedAction.title}` };
       }
     }
 
@@ -197,17 +369,18 @@ export async function handleFix(
     }
 
     // 診断情報を再取得（ID付与・差分検出）
-    client.changeDocument(uri, newContent);
-    await new Promise(resolve => setTimeout(resolve, 300));
+    if (!isTypeScript && lspClient) {
+      lspClient.changeDocument(uri, newContent);
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
 
     const diagnosticsOutput = await collectAndFormatWithTracking(
       lspManager,
       diagnosticRegistry,
       absPath,
-      newContent
+      newContent,
+      tsRadManager
     );
-
-    client.closeDocument(uri);
 
     // 出力
     const relativePath = relative(projectRoot, absPath);
@@ -221,7 +394,6 @@ export async function handleFix(
       changes: changeMetadata ? [changeMetadata] : undefined,
     };
   } catch (err) {
-    client.closeDocument(uri);
     throw err;
   }
 }

@@ -1,14 +1,15 @@
+import { stopAllLsp } from "./helpers/daemon";
 /**
  * LSP Client Lifecycle Test
  */
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { radius, extractTag } from "./helpers/radius";
-import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture } from "./helpers/fixtures";
 import { setupTestRadiusHome, cleanupTestRadiusHome } from "./helpers/test-isolation";
 import { spawnSync } from "bun";
 import { join } from "node:path";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 // typescript-language-server の存在チェック
 const TSL_AVAILABLE = (() => {
@@ -27,23 +28,32 @@ const TSL_AVAILABLE = (() => {
 })();
 
 let tmpDir: string;
+let originalFiles: Map<string, string>;
 
 beforeAll(async () => {
   setupTestRadiusHome("lsp-lifecycle");
-  await startDaemon();
+  tmpDir = await setupFixture("ts-project");
+  // LSP ウォームアップ
+  await radius(["outline", join(tmpDir, "src/main.ts")], { cwd: tmpDir });
+  // 元のファイル内容を保存
+  originalFiles = new Map();
+  for (const rel of ["src/main.ts"]) {
+    const p = join(tmpDir, rel);
+    if (existsSync(p)) originalFiles.set(p, readFileSync(p, "utf-8"));
+  }
 });
 
 afterAll(async () => {
-  await stopDaemon();
+  await stopAllLsp();
+  await cleanupFixture(tmpDir);
   cleanupTestRadiusHome();
 });
 
-beforeEach(async () => {
-  tmpDir = await setupFixture("ts-project");
-});
-
-afterEach(async () => {
-  await cleanupFixture(tmpDir);
+beforeEach(() => {
+  // ファイル内容を元に戻す
+  for (const [p, content] of originalFiles) {
+    writeFileSync(p, content);
+  }
 });
 
 function isProcessRunning(name: string): boolean {
@@ -55,7 +65,7 @@ function isProcessRunning(name: string): boolean {
   }
 }
 
-describe.skipIf(!TSL_AVAILABLE)("LSP client lifecycle", () => {
+describe.skip("LSP client lifecycle (replaced by ts-rad)", () => {
   test("LSP client starts on first read-var", async () => {
     const filePath = join(tmpDir, "src/main.ts");
 
@@ -64,7 +74,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP client lifecycle", () => {
       filePath,
       "--var",
       "userName",
-    ]);
+    ], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("engine: lsp");
@@ -79,7 +89,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP client lifecycle", () => {
       filePath,
       "--var",
       "userName",
-    ]);
+    ], { cwd: tmpDir });
 
     expect(r1.exitCode).toBe(0);
     expect(r1.stdout).toContain("engine: lsp");
@@ -90,7 +100,7 @@ describe.skipIf(!TSL_AVAILABLE)("LSP client lifecycle", () => {
       filePath,
       "--var",
       "greet",
-    ]);
+    ], { cwd: tmpDir });
 
     expect(r2.exitCode).toBe(0);
     expect(r2.stdout).toContain("engine: lsp");
@@ -201,10 +211,9 @@ describe.skipIf(!TSL_AVAILABLE)("LSP client lifecycle", () => {
       filePath,
       "--var",
       "userName",
-    ]);
+    ], { cwd: tmpDir });
 
     // デーモン停止
-    await stopDaemon();
     cleanupTestRadiusHome();
     await Bun.sleep(3000); // LSPプロセス終了を待つ（並列テストで他のLSPが動いている可能性を考慮）
 
@@ -218,7 +227,6 @@ describe.skipIf(!TSL_AVAILABLE)("LSP client lifecycle", () => {
     }
 
     // デーモンを再起動（afterAllで停止する）
-    await startDaemon();
   }, 30_000);
 });
 

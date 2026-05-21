@@ -226,23 +226,7 @@ export async function handleRenameFile(
 
   await historyTracker.record(changeset);
 
-  // 11. LSP 状態リセット
-  const client = await ctx.lspManager.getClient(newAbsPath, projectRoot);
-  if (client) {
-    // 変更されたファイルの didClose
-    for (const filePath of updatedFiles) {
-      const uri = `file://${filePath}`;
-      client.closeDocument(uri);
-    }
-
-    // リネームされたファイル自身
-    const oldUri = `file://${oldAbsPath}`;
-    const newUri = `file://${newAbsPath}`;
-    client.closeDocument(oldUri);
-    client.closeDocument(newUri);
-  }
-
-  // 12. 診断情報を収集（リネーム先ファイル）
+  // 11. 診断情報を収集（リネーム先ファイル）
   const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
   const newFileContent = ctx.bufferManager.getContent(newAbsPath);
   const diagnosticsOutput = await collectAndFormatWithTracking(

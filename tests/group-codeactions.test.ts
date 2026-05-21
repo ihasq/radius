@@ -1,3 +1,4 @@
+import { stopAllLsp } from "./helpers/daemon";
 /**
  * Phase 17: Code Actions / Format テスト
  *
@@ -9,29 +10,46 @@
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { radius, extractTag } from "./helpers/radius";
-import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture, readFixtureFile, writeFixtureFile } from "./helpers/fixtures";
 import { setupTestRadiusHome, cleanupTestRadiusHome } from "./helpers/test-isolation";
 import { join } from "node:path";
+import { existsSync, readFileSync, writeFileSync, unlinkSync, utimesSync } from "node:fs";
 
 let tmpDir: string;
+let originalFiles: Map<string, string>;
 
 beforeAll(async () => {
   setupTestRadiusHome("codeactions");
-  await startDaemon();
+  tmpDir = await setupFixture("ts-project");
+  // LSP ウォームアップ
+  await radius(["outline", join(tmpDir, "src/main.ts")], { cwd: tmpDir });
+  // 元のファイル内容を保存
+  originalFiles = new Map();
+  for (const rel of ["src/with-errors.ts", "src/main.ts", "src/unformatted.ts"]) {
+    const p = join(tmpDir, rel);
+    if (existsSync(p)) originalFiles.set(p, readFileSync(p, "utf-8"));
+  }
 });
 
 afterAll(async () => {
-  await stopDaemon();
+  await stopAllLsp();
+  await cleanupFixture(tmpDir);
   cleanupTestRadiusHome();
 });
 
 beforeEach(async () => {
-  tmpDir = await setupFixture("ts-project");
-});
-
-afterEach(async () => {
-  await cleanupFixture(tmpDir);
+  // ファイル内容を元に戻す
+  for (const [p, content] of originalFiles) {
+    writeFileSync(p, content);
+    // Update mtime to ensure BufferManager detects the change
+    const now = Date.now() / 1000;
+    utimesSync(p, now, now);
+  }
+  // Wait to ensure mtime check interval passes (BufferManager checks every 1s)
+  await new Promise(resolve => setTimeout(resolve, 1100));
+  // テストで作成されるファイルを削除
+  const testTxt = join(tmpDir, "test.txt");
+  if (existsSync(testTxt)) unlinkSync(testTxt);
 });
 
 describe("fix", () => {
@@ -130,11 +148,13 @@ describe("fix", () => {
     let fixResult;
     let tag = "";
     for (const id of allIds) {
+      const contentBefore = readFileSync(filePath, "utf-8");
       fixResult = await radius(["fix", filePath, "--id", id], { cwd: tmpDir });
       expect(fixResult.exitCode).toBe(0);
+      const contentAfter = readFileSync(filePath, "utf-8");
 
-      // "applied:" を含む = 編集が適用された
-      if (fixResult.stdout.includes("applied:")) {
+      // "applied:" を含み、かつファイル内容が変更された = 編集が適用された
+      if (fixResult.stdout.includes("applied:") && contentBefore !== contentAfter) {
         tag = extractTag(fixResult.stdout);
         break;
       }

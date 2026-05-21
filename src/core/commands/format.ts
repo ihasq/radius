@@ -11,19 +11,21 @@ import type { HistoryTracker } from "../history/tracker";
 import type { Changeset } from "../history/types";
 import type { IpcResponse, ChangeMetadata } from "../../shared/types";
 import type { LspManager } from "../../lsp/manager";
-import { resolveLanguageId } from "../../lsp/manager";
+import type { LspClient } from "../../lsp/client";
 import type { BufferManager } from "../buffer/manager";
 import { collectAndFormatWithTracking } from "../../lsp/diagnostics";
 import type { DiagnosticRegistry } from "../../lsp/diagnostic-registry";
 import { filepath } from "../../shared/colors";
 import type { LspTextEdit } from "../../lsp/types";
 import { errorResponse } from "../../shared/output";
+import ts from "typescript";
 
 /**
  * format コマンドハンドラ。
  */
 export async function handleFormat(
   args: Record<string, unknown>,
+  lspClient: LspClient | null,
   lspManager: LspManager,
   historyTracker: HistoryTracker,
   bufferManager: BufferManager,
@@ -42,13 +44,7 @@ export async function handleFormat(
   }
 
   const projectRoot = findProjectRoot(absPath);
-  const uri = `file://${absPath}`;
-
-  // LSPクライアントを取得
-  const client = await lspManager.getClient(absPath, projectRoot);
-  if (!client) {
-    return { ok: true, data: "formatting unavailable (no LSP for this file type)" };
-  }
+  const relativePath = relative(projectRoot, absPath);
 
   // ファイル内容を取得
   let content: string;
@@ -58,10 +54,19 @@ export async function handleFormat(
     return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  const languageId = resolveLanguageId(absPath);
+  // TypeScript/TSX ファイルは ts-rad で処理（外部LSP不要）
+  const isTypeScript = absPath.endsWith(".ts") || absPath.endsWith(".tsx");
+  if (isTypeScript) {
+    return await handleTsRadFormat(absPath, relativePath, content, bufferManager, historyTracker);
+  }
 
-  // ドキュメントを開く
-  client.openDocument(uri, languageId, content);
+  const uri = `file://${absPath}`;
+
+  // LSPクライアントを使用（非TypeScript言語用）
+  const client = lspClient;
+  if (!client) {
+    return { ok: true, data: "formatting unavailable (no LSP for this file type)" };
+  }
 
   try {
     // フォーマットオプション（プロジェクト設定から推定、デフォルトは2スペース）
@@ -74,7 +79,6 @@ export async function handleFormat(
     const edits = await client.formatting(uri, options);
 
     if (edits.length === 0) {
-      client.closeDocument(uri);
       return { ok: true, data: "no changes" };
     }
 
@@ -113,10 +117,6 @@ export async function handleFormat(
       result.newContent
     );
 
-    client.closeDocument(uri);
-
-    const relativePath = relative(projectRoot, absPath);
-
     // 変更メタデータを計算
     const changeMetadata: ChangeMetadata = {
       filePath: absPath,
@@ -131,8 +131,7 @@ export async function handleFormat(
       changes: [changeMetadata],
     };
   } catch (err) {
-    client.closeDocument(uri);
-    throw err;
+    return errorResponse(`Failed to format: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -190,3 +189,104 @@ function getOffset(lines: string[], line: number, character: number): number {
   return offset;
 }
 
+/**
+ * ts-rad による TypeScript フォーマット（depth-1: パースのみ）。
+ * 外部LSP不要、node_modules走査なし。
+ */
+async function handleTsRadFormat(
+  absPath: string,
+  relativePath: string,
+  content: string,
+  bufferManager: BufferManager,
+  historyTracker: HistoryTracker
+): Promise<IpcResponse> {
+  try {
+    // depth-1: SourceFile を作成（型チェックなし）
+    const sourceFile = ts.createSourceFile(
+      absPath,
+      content,
+      ts.ScriptTarget.Latest,
+      true
+    );
+
+    // フォーマットオプション
+    const formatOptions: ts.FormatCodeSettings = {
+      baseIndentSize: 0,
+      indentSize: 2,
+      tabSize: 2,
+      convertTabsToSpaces: true,
+      newLineCharacter: "\n",
+      indentStyle: ts.IndentStyle.Smart,
+      insertSpaceAfterCommaDelimiter: true,
+      insertSpaceAfterSemicolonInForStatements: true,
+      insertSpaceBeforeAndAfterBinaryOperators: true,
+      insertSpaceAfterKeywordsInControlFlowStatements: true,
+      insertSpaceAfterFunctionKeywordForAnonymousFunctions: false,
+      insertSpaceBeforeFunctionParenthesis: false,
+      insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
+      semicolons: ts.SemicolonPreference.Insert,
+    };
+
+    // フォーマットコンテキストを作成
+    const formatContext = ts.formatting.getFormatContext(formatOptions, { getNewLine: () => "\n" });
+
+    // フォーマット実行
+    const edits = ts.formatting.formatDocument(sourceFile, formatContext);
+
+    if (edits.length === 0) {
+      return { ok: true, data: "no changes" };
+    }
+
+    // 編集を逆順適用（offset ずれ防止）
+    let result = content;
+    let minLine = Infinity;
+    let maxLine = -Infinity;
+
+    for (const edit of [...edits].reverse()) {
+      const startPos = sourceFile.getLineAndCharacterOfPosition(edit.span.start);
+      const endPos = sourceFile.getLineAndCharacterOfPosition(edit.span.start + edit.span.length);
+      minLine = Math.min(minLine, startPos.line);
+      maxLine = Math.max(maxLine, endPos.line);
+
+      result = result.slice(0, edit.span.start) + edit.newText + result.slice(edit.span.start + edit.span.length);
+    }
+
+    const changedLines = maxLine - minLine + 1;
+
+    // 変更をファイルに書き込み
+    bufferManager.setContent(absPath, result);
+    bufferManager.flush(absPath);
+
+    // Changeset 記録
+    const changeset: Changeset = {
+      id: String(Date.now()),
+      timestamp: new Date().toISOString(),
+      command: "format",
+      description: `${absPath}`,
+      changes: [
+        {
+          filePath: absPath,
+          before: content,
+          after: result,
+        },
+      ],
+    };
+    await historyTracker.record(changeset);
+
+    // 変更メタデータを計算
+    const changeMetadata: ChangeMetadata = {
+      filePath: absPath,
+      startLine: (minLine === Infinity ? 0 : minLine) + 1,
+      endLine: (maxLine === -Infinity ? 0 : maxLine) + 1,
+      newEndLine: (minLine === Infinity ? 0 : minLine) + 1 + (result.split("\n").length - content.split("\n").length),
+    };
+
+    return {
+      ok: true,
+      data: `formatted: ${filepath(relativePath)}\nchanges: ${changedLines} line(s)\ndiagnostics: ok`,
+      changes: [changeMetadata],
+    };
+  } catch (err) {
+    return errorResponse(`Failed to format: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}

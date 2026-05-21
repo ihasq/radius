@@ -40,7 +40,8 @@ export async function generateRefGraph(
   let engine = "text";
 
   try {
-    const client = await lspManager.getClient(filePath, projectRoot);
+    // 既存のLSPクライアントのみを使用（新規起動しない）
+    const client = lspManager.getExistingClient(projectRoot);
     if (client) {
       const uri = `file://${filePath}`;
       const refs = await client.getReferences(uri, symbolPosition);

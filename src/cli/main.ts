@@ -16,7 +16,7 @@ import type { IpcRequest } from "../shared/types";
 import { readStdin, isStdinAvailable } from "../shared/stdin";
 import pkg from "../../package.json";
 import { muted, stripAnsi, shouldStripColors } from "../shared/colors";
-import { getTip, getSuccessTip } from "./tips";
+import { getTip } from "./tips";
 
 /**
  * PIDファイルに記録されたプロセスが生存しているか確認する。
@@ -184,10 +184,19 @@ async function main(): Promise<void> {
 
   // A: エラーハンドリング
   if (!response.ok) {
-    console.error(`error: ${response.error}`);
+    let errorMsg: string;
+    const err = response.error;
+    if (typeof err === "string") {
+      errorMsg = err;
+    } else if (err && typeof err === "object" && "message" in err) {
+      errorMsg = String((err as { message: unknown }).message);
+    } else {
+      errorMsg = String(err || "unknown error");
+    }
+    console.error(`error: ${errorMsg}`);
     // tips 追加（--help 指定時は除外）
     if (!args.includes("--help") && !args.includes("-h")) {
-      const tip = getTip(commandName, response.error || "");
+      const tip = getTip(commandName, errorMsg);
       if (tip) {
         console.error(tip);
       }
@@ -212,18 +221,6 @@ async function main(): Promise<void> {
       console.log(output);
     } else {
       console.log(JSON.stringify(response.data, null, 2));
-    }
-
-    // A: 成功時tips
-    if (response.ok) {
-      const successTip = getSuccessTip(
-        commandName,
-        args,
-        typeof response.data === "string" ? response.data : ""
-      );
-      if (successTip) {
-        console.error(successTip);
-      }
     }
   }
 

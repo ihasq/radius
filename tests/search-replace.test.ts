@@ -4,7 +4,6 @@
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { radius, extractTag } from "./helpers/radius";
-import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture, readFixtureFile } from "./helpers/fixtures";
 import { setupTestRadiusHome, cleanupTestRadiusHome } from "./helpers/test-isolation";
 import { writeFileSync } from "node:fs";
@@ -14,11 +13,9 @@ let tmpDir: string;
 
 beforeAll(async () => {
   setupTestRadiusHome("search-replace");
-  await startDaemon();
 });
 
 afterAll(async () => {
-  await stopDaemon();
   cleanupTestRadiusHome();
 });
 
@@ -383,11 +380,11 @@ describe("replace-all", () => {
       "--replacement",
       "userId",
       "--include",
-      "*.ts",
+      "**/*.ts",
     ], { cwd: tmpDir });
 
     expect(r1.exitCode).toBe(0);
-    expect(r1.stdout).toMatch(/files modified:\s*[3-9]/); // 最低3ファイル
+    expect(r1.stdout).toMatch(/files modified:\s*[3-9]/); // 最低3ファイル（lib/helpers.ts含む）
 
     await radius(["undo", "--tag", extractTag(r1.stdout)], { cwd: tmpDir });
   }, 30_000);

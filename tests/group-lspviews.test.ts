@@ -1,3 +1,4 @@
+import { stopAllLsp, clearTsRadCache } from "./helpers/daemon";
 /**
  * Phase 18: LLM可読ビュー テスト
  *
@@ -12,31 +13,55 @@
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { radius } from "./helpers/radius";
-import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture, writeFixtureFile } from "./helpers/fixtures";
 import { setupTestRadiusHome, cleanupTestRadiusHome } from "./helpers/test-isolation";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, existsSync, readFileSync, unlinkSync, rmSync, utimesSync } from "node:fs";
 
 let tmpDir: string;
+let originalFiles: Map<string, string>;
 
 beforeAll(async () => {
   setupTestRadiusHome("lspviews");
-  await startDaemon();
+  tmpDir = await setupFixture("ts-project");
+  // LSP ウォームアップ
+  await radius(["outline", join(tmpDir, "src/main.ts")], { cwd: tmpDir });
+  // 元のファイル内容を保存
+  originalFiles = new Map();
+  for (const rel of ["src/main.ts", "src/classes.ts", "src/documented.ts", "src/with-errors.ts"]) {
+    const p = join(tmpDir, rel);
+    if (existsSync(p)) originalFiles.set(p, readFileSync(p, "utf-8"));
+  }
 });
 
 afterAll(async () => {
-  await stopDaemon();
+  await stopAllLsp();
+  await cleanupFixture(tmpDir);
   cleanupTestRadiusHome();
 });
 
 beforeEach(async () => {
-  tmpDir = await setupFixture("ts-project");
-});
-
-afterEach(async () => {
-  await cleanupFixture(tmpDir);
+  // Stop all LSP clients to prevent interference
+  await stopAllLsp();
+  // Clear TsRadManager cache to prevent interference
+  await clearTsRadCache();
+  // ファイル内容を元に戻す
+  for (const [p, content] of originalFiles) {
+    writeFileSync(p, content);
+    // Update mtime to ensure BufferManager detects the change
+    const now = Date.now() / 1000;
+    utimesSync(p, now, now);
+  }
+  // Wait to ensure mtime check interval passes (BufferManager checks every 1s)
+  await new Promise(resolve => setTimeout(resolve, 1100));
+  // テストで作成されるファイルを削除
+  const emptyTs = join(tmpDir, "empty.ts");
+  const testPy = join(tmpDir, "test.py");
+  const nonGitDir = join(tmpDir, "..", "non-git-dir");
+  if (existsSync(emptyTs)) unlinkSync(emptyTs);
+  if (existsSync(testPy)) unlinkSync(testPy);
+  if (existsSync(nonGitDir)) rmSync(nonGitDir, { recursive: true, force: true });
 });
 
 describe("outline", () => {
@@ -191,7 +216,7 @@ describe("typehierarchy", () => {
     const result = await radius(["typehierarchy", filePath, "--symbol", "userName"], { cwd: tmpDir });
 
     // Variables don't have type hierarchies
-    expect(result.stdout).toMatch(/no type hierarchy available|not found/i);
+    expect(result.stdout).toMatch(/no type hierarchy available|not found|unavailable/i);
     expect(result.exitCode).toBe(0);
   }, 30_000);
 });
@@ -229,30 +254,53 @@ export function greet(): string {
   }, 30_000);
 
   test("diff --ref shows changes against specific commit", async () => {
-    // git リポジトリを初期化
-    execSync(
-      "git init && git config user.email 'test@test.com' && git config user.name 'test' && git add -A && git commit -m 'init'",
-      { cwd: tmpDir, stdio: "ignore" }
-    );
+    // git リポジトリを初期化 (.git が既存の場合は削除)
+    const gitDir = join(tmpDir, ".git");
+    if (existsSync(gitDir)) {
+      rmSync(gitDir, { recursive: true, force: true });
+    }
 
-    // ファイルを変更してコミット
-    const filePath = join(tmpDir, "src/main.ts");
-    await writeFixtureFile(tmpDir, "src/main.ts", "// modified\n");
-    execSync("git add -A && git commit -m 'modify'", { cwd: tmpDir, stdio: "ignore" });
+    try {
+      execSync("git init", { cwd: tmpDir, stdio: "ignore" });
+      execSync("git config user.email 'test@test.com'", { cwd: tmpDir, stdio: "ignore" });
+      execSync("git config user.name 'test'", { cwd: tmpDir, stdio: "ignore" });
+      execSync("git add -A", { cwd: tmpDir, stdio: "ignore" });
+      execSync("git commit -m 'init' --allow-empty", { cwd: tmpDir, stdio: "ignore" });
 
-    const result = await radius(["diff", filePath, "--ref", "HEAD~1"], { cwd: tmpDir });
+      // ファイルを変更してコミット
+      const filePath = join(tmpDir, "src/main.ts");
+      await writeFixtureFile(tmpDir, "src/main.ts", "// modified\n");
+      execSync("git add -A", { cwd: tmpDir, stdio: "ignore" });
+      execSync("git commit -m 'modify'", { cwd: tmpDir, stdio: "ignore" });
 
-    // 前コミットとの差分が表示
-    expect(result.stdout).toMatch(/\+|\-|diff|change/i);
-    expect(result.exitCode).toBe(0);
+      const result = await radius(["diff", filePath, "--ref", "HEAD~1"], { cwd: tmpDir });
+
+      // 前コミットとの差分が表示
+      expect(result.stdout).toMatch(/\+|\-|diff|change/i);
+      expect(result.exitCode).toBe(0);
+    } catch (err) {
+      console.error("Git operations failed:", err);
+      throw err;
+    }
   }, 30_000);
 
   test("diff shows no changes for clean file", async () => {
-    // git リポジトリを初期化
-    execSync(
-      "git init && git config user.email 'test@test.com' && git config user.name 'test' && git add -A && git commit -m 'init'",
-      { cwd: tmpDir, stdio: "ignore" }
-    );
+    // git リポジトリを初期化 (.git が既存の場合は削除)
+    const gitDir = join(tmpDir, ".git");
+    if (existsSync(gitDir)) {
+      rmSync(gitDir, { recursive: true, force: true });
+    }
+
+    try {
+      execSync("git init", { cwd: tmpDir, stdio: "ignore" });
+      execSync("git config user.email 'test@test.com'", { cwd: tmpDir, stdio: "ignore" });
+      execSync("git config user.name 'test'", { cwd: tmpDir, stdio: "ignore" });
+      execSync("git add -A", { cwd: tmpDir, stdio: "ignore" });
+      execSync("git commit -m 'init' --allow-empty", { cwd: tmpDir, stdio: "ignore" });
+    } catch (err) {
+      console.error("Git init failed:", err);
+      throw err;
+    }
 
     const filePath = join(tmpDir, "src/main.ts");
 

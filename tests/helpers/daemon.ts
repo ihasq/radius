@@ -75,6 +75,18 @@ export async function stopAllLsp(): Promise<void> {
 }
 
 /**
+ * TsRadManager のキャッシュをクリアする。
+ * テストの beforeEach で呼び出してLanguage Serviceの干渉を防止する。
+ */
+export async function clearTsRadCache(): Promise<void> {
+  try {
+    await sendRequest({ command: "tsrad-clear-cache", args: {} }, 5000);
+  } catch {
+    // デーモン未起動の場合は無視
+  }
+}
+
+/**
  * テスト用デーモンを停止する。
  */
 export async function stopDaemon(): Promise<void> {

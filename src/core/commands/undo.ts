@@ -7,9 +7,11 @@
 import { LspManager } from "../../lsp/manager";
 import { findProjectRoot } from "../../shared/project";
 import { HistoryTracker } from "../history/tracker";
+import type { TsRadManager } from "../ts-service/manager";
 import type { IpcResponse } from "../../shared/types";
 import { filepath, warning as colorWarning } from "../../shared/colors";
 import { errorResponse } from "../../shared/output";
+import { readFileSync } from "node:fs";
 
 /**
  * undo コマンドのエントリポイント。
@@ -17,7 +19,8 @@ import { errorResponse } from "../../shared/output";
 export async function handleUndo(
   _args: Record<string, unknown>,
   lspManager: LspManager,
-  historyTracker: HistoryTracker
+  historyTracker: HistoryTracker,
+  tsRadManager?: TsRadManager
 ): Promise<IpcResponse> {
   const changeset = await historyTracker.undo();
 
@@ -25,17 +28,14 @@ export async function handleUndo(
     return errorResponse("No history to undo");
   }
 
-  // A2: 復元された各ファイルの didClose を送信
-  const projectRoot = findProjectRoot(changeset.changes[0]?.filePath || "");
-  const client = await lspManager.getClient(
-    changeset.changes[0]?.filePath || "",
-    projectRoot
-  );
-
-  if (client) {
-    for (const change of changeset.changes) {
-      const uri = `file://${change.filePath}`;
-      client.closeDocument(uri);
+  // undo でファイル復元後、TsRadManager に変更を通知
+  for (const change of changeset.changes) {
+    const projectRoot = findProjectRoot(change.filePath);
+    try {
+      const content = readFileSync(change.filePath, "utf-8");
+      tsRadManager?.notifyFileChange(projectRoot, change.filePath, content);
+    } catch {
+      // ファイルが存在しない場合はスキップ
     }
   }
 

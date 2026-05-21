@@ -4,11 +4,12 @@
  * ファイル内容の閲覧（行範囲指定可）、ディレクトリ一覧。
  */
 
-import { existsSync, statSync, readdirSync } from "node:fs";
+import { existsSync, statSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { IpcResponse } from "../../shared/types";
 import type { BufferManager } from "../buffer/manager";
 import { errorResponse } from "../../shared/output";
+import { analyzeFileContext, formatContextSection } from "../../shared/context";
 
 /**
  * view コマンドハンドラ。
@@ -90,7 +91,12 @@ export async function handleView(
         output.push(`${lineNum}: ${bufferManager.getLineContent(absPath, i)}`);
       }
 
-      return { ok: true, data: output.join("\n"), primaryFile: absPath };
+      // コンテキスト追加
+      const content = readFileSync(absPath, "utf-8");
+      const ctx = analyzeFileContext(absPath, content);
+      const contextSection = ctx ? formatContextSection(ctx) : "";
+
+      return { ok: true, data: output.join("\n") + contextSection };
     }
 
     // 通常出力（200行以下 or 範囲指定あり）
@@ -100,7 +106,12 @@ export async function handleView(
       output.push(`${lineNum}: ${bufferManager.getLineContent(absPath, i)}`);
     }
 
-    return { ok: true, data: output.join("\n"), primaryFile: absPath };
+    // コンテキスト追加（range 指定時は省略）
+    const content = readFileSync(absPath, "utf-8");
+    const ctx = range ? null : analyzeFileContext(absPath, content);
+    const contextSection = ctx ? formatContextSection(ctx) : "";
+
+    return { ok: true, data: output.join("\n") + contextSection };
   } catch (err) {
     return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
   }

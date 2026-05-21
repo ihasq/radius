@@ -4,7 +4,6 @@
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { radius, extractTag } from "./helpers/radius";
-import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture, readFixtureFile } from "./helpers/fixtures";
 import { setupTestRadiusHome, cleanupTestRadiusHome } from "./helpers/test-isolation";
 import { join } from "node:path";
@@ -14,11 +13,9 @@ let tmpDir: string;
 
 beforeAll(async () => {
   setupTestRadiusHome("rename-imports");
-  await startDaemon();
 });
 
 afterAll(async () => {
-  await stopDaemon();
   cleanupTestRadiusHome();
 });
 

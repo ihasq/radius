@@ -2,15 +2,18 @@
  * Phase 19: tokens コマンドハンドラ。
  *
  * セマンティックトークンを取得して表示する。
+ * depth-2: TypeScript ファイルは TsRad (Language Service) で処理
  */
 
+import ts from "typescript";
 import { existsSync } from "node:fs";
 import { resolve, relative } from "node:path";
 import { findProjectRoot } from "../../shared/project";
 import type { IpcResponse } from "../../shared/types";
-import type { LspManager } from "../../lsp/manager";
+import type { LspClient } from "../../lsp/client";
 import type { BufferManager } from "../buffer/manager";
 import { errorResponse } from "../../shared/output";
+import type { TsRadManager } from "../ts-service/manager";
 
 /** セマンティックトークンタイプ（標準的な定義）。 */
 const TOKEN_TYPES = [
@@ -57,8 +60,9 @@ const TOKEN_MODIFIERS = [
  */
 export async function handleTokens(
   args: Record<string, unknown>,
-  lspManager: LspManager,
-  bufferManager: BufferManager
+  lspClient: LspClient | null,
+  bufferManager: BufferManager,
+  tsRadManager: TsRadManager
 ): Promise<IpcResponse> {
   const file = args.file as string | undefined;
   const rangeArg = args.range as string | undefined;
@@ -83,12 +87,6 @@ export async function handleTokens(
     return { ok: true, data: "semantic tokens unavailable (unsupported file type)" };
   }
 
-  // LSPクライアントを取得
-  const client = await lspManager.getClient(absPath, projectRoot);
-  if (!client) {
-    return { ok: true, data: "semantic tokens unavailable (no LSP for this file type)" };
-  }
-
   // ファイル内容を取得
   let content: string;
   try {
@@ -97,10 +95,17 @@ export async function handleTokens(
     return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  const languageId = getLanguageId(absPath);
+  // TypeScript ファイルの場合は TsRad (depth-2) を使用
+  const isTypeScript = ["ts", "tsx"].includes(ext || "");
+  if (isTypeScript) {
+    return handleTsRadTokens(absPath, relativePath, content, projectRoot, rangeArg, tsRadManager);
+  }
 
-  // ドキュメントを開く
-  client.openDocument(uri, languageId, content);
+  // LSPクライアントを使用
+  const client = lspClient;
+  if (!client) {
+    return { ok: true, data: "semantic tokens unavailable (no LSP for this file type)" };
+  }
 
   try {
     let tokens: { data: number[] };
@@ -113,7 +118,6 @@ export async function handleTokens(
       const endLine = parseInt(parts[1], 10) - 1;
 
       if (isNaN(startLine) || isNaN(endLine)) {
-        client.closeDocument(uri);
         return errorResponse("Invalid range format. Use --range start:end");
       }
 
@@ -126,8 +130,6 @@ export async function handleTokens(
     } else {
       tokens = await client.semanticTokensFull(uri);
     }
-
-    client.closeDocument(uri);
 
     if (!tokens || !tokens.data || tokens.data.length === 0) {
       return { ok: true, data: `tokens: ${relativePath}\n\nno semantic tokens found` };
@@ -152,7 +154,6 @@ export async function handleTokens(
 
     return { ok: true, data: output.join("\n") };
   } catch (err) {
-    client.closeDocument(uri);
     return { ok: true, data: "semantic tokens unavailable (LSP does not support semantic tokens)" };
   }
 }
@@ -222,6 +223,127 @@ function decodeModifiers(bitset: number): string[] {
     }
   }
   return modifiers;
+}
+
+/**
+ * TsRad (depth-2) を使用してセマンティックトークンを取得する。
+ */
+function handleTsRadTokens(
+  absPath: string,
+  relativePath: string,
+  content: string,
+  projectRoot: string,
+  rangeArg: string | undefined,
+  tsRadManager: TsRadManager
+): IpcResponse {
+  // TsRadManager から Language Service を取得
+  const service = tsRadManager.getService(projectRoot, 2, absPath, content);
+
+  try {
+    const sourceFile = service.getProgram()?.getSourceFile(absPath);
+    if (!sourceFile) {
+      return { ok: true, data: `tokens: ${relativePath}\n\nno semantic tokens found` };
+    }
+
+    const lines = content.split("\n");
+    const tokens: TokenInfo[] = [];
+
+    // 範囲指定がある場合
+    let startLine = 0;
+    let endLine = lines.length - 1;
+    if (rangeArg) {
+      const parts = rangeArg.split(":");
+      startLine = parseInt(parts[0], 10) - 1;
+      endLine = parseInt(parts[1], 10) - 1;
+    }
+
+    // ソースファイルからトークンを抽出
+    function visit(node: ts.Node) {
+      const pos = sourceFile!.getLineAndCharacterOfPosition(node.getStart());
+      const line = pos.line;
+
+      // 範囲外はスキップ
+      if (line < startLine || line > endLine) {
+        return;
+      }
+
+      const tokenType = getTokenType(node);
+      const text = node.getText(sourceFile);
+
+      if (tokenType) {
+        tokens.push({
+          line: line + 1,
+          type: tokenType,
+          text: text,
+        });
+      }
+
+      ts.forEachChild(node, visit);
+    }
+
+    visit(sourceFile);
+
+    if (tokens.length === 0) {
+      return { ok: true, data: `tokens: ${relativePath}\n\nno semantic tokens found` };
+    }
+
+    // 出力を生成
+    const output: string[] = [`tokens: ${relativePath}`, ""];
+
+    if (rangeArg) {
+      output.push(`range: ${rangeArg}`, "");
+    }
+
+    for (const token of tokens) {
+      output.push(`line ${token.line}: ${token.type} "${token.text}"`);
+    }
+
+    output.push("", `total: ${tokens.length} tokens`);
+
+    return { ok: true, data: output.join("\n") };
+  } catch (err) {
+    return errorResponse(`TsRad tokens failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+interface TokenInfo {
+  line: number;
+  type: string;
+  text: string;
+}
+
+/**
+ * ノードからトークンタイプを取得する。
+ */
+function getTokenType(node: ts.Node): string | null {
+  if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node)) {
+    return "function";
+  }
+  if (ts.isMethodDeclaration(node)) {
+    return "method";
+  }
+  if (ts.isClassDeclaration(node)) {
+    return "class";
+  }
+  if (ts.isInterfaceDeclaration(node)) {
+    return "interface";
+  }
+  if (ts.isTypeAliasDeclaration(node)) {
+    return "type";
+  }
+  if (ts.isVariableDeclaration(node)) {
+    return "variable";
+  }
+  if (ts.isParameter(node)) {
+    return "parameter";
+  }
+  if (ts.isPropertyDeclaration(node) || ts.isPropertySignature(node)) {
+    return "property";
+  }
+  if (ts.isEnumDeclaration(node)) {
+    return "enum";
+  }
+  return null;
 }
 
 /**

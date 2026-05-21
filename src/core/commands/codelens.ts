@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 import { resolve, relative } from "node:path";
 import { findProjectRoot } from "../../shared/project";
 import type { IpcResponse } from "../../shared/types";
-import type { LspManager } from "../../lsp/manager";
+import type { LspClient } from "../../lsp/client";
 import type { BufferManager } from "../buffer/manager";
 import type { LspCodeLens } from "../../lsp/types";
 import { errorResponse } from "../../shared/output";
@@ -18,7 +18,7 @@ import { errorResponse } from "../../shared/output";
  */
 export async function handleCodeLens(
   args: Record<string, unknown>,
-  lspManager: LspManager,
+  lspClient: LspClient | null,
   bufferManager: BufferManager
 ): Promise<IpcResponse> {
   const file = args.file as string | undefined;
@@ -37,8 +37,8 @@ export async function handleCodeLens(
   const uri = `file://${absPath}`;
   const relativePath = relative(projectRoot, absPath);
 
-  // LSPクライアントを取得
-  const client = await lspManager.getClient(absPath, projectRoot);
+  // LSPクライアントを使用
+  const client = lspClient;
   if (!client) {
     return { ok: true, data: "no code lenses (no LSP for this file type)" };
   }
@@ -51,18 +51,13 @@ export async function handleCodeLens(
     return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  const languageId = getLanguageId(absPath);
   const lines = content.split("\n");
-
-  // ドキュメントを開く
-  client.openDocument(uri, languageId, content);
 
   try {
     // コードレンズを取得
     let lenses = await client.codeLens(uri);
 
     if (!lenses || lenses.length === 0) {
-      client.closeDocument(uri);
       return { ok: true, data: "no code lenses" };
     }
 
@@ -77,8 +72,6 @@ export async function handleCodeLens(
         resolvedLenses.push(lens);
       }
     }
-
-    client.closeDocument(uri);
 
     // 出力を構築
     const output: string[] = [`codelens: ${relativePath}`, ""];
@@ -106,7 +99,6 @@ export async function handleCodeLens(
 
     return { ok: true, data: output.join("\n") };
   } catch (err) {
-    client.closeDocument(uri);
     throw err;
   }
 }

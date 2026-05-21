@@ -4,7 +4,6 @@
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { radius, extractTag } from "./helpers/radius";
-import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture, readFixtureFile } from "./helpers/fixtures";
 import { setupTestRadiusHome, cleanupTestRadiusHome } from "./helpers/test-isolation";
 import { join } from "node:path";
@@ -13,11 +12,9 @@ let tmpDir: string;
 
 beforeAll(async () => {
   setupTestRadiusHome("dogtag");
-  await startDaemon();
 });
 
 afterAll(async () => {
-  await stopDaemon();
   cleanupTestRadiusHome();
 });
 
@@ -197,7 +194,7 @@ describe("dog tag", () => {
     // 2. タグなしで書き込み → 新しいChain Bが作成されるが、Chain Aとのコンフリクトで--reasonが必要
     const r2 = await radius(
       ["str-replace", filePath, "--old", 'const step1: string = "default_user"', "--new", 'const step2: string = "default_user"'],
-      { cwd: tmpDir }
+      { cwd: tmpDir, skipAutoReason: true }
     );
     expect(r2.exitCode).toBe(1);
     expect(r2.stderr).toMatch(/conflict detected/i);

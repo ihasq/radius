@@ -90,9 +90,19 @@ export async function handleCreate(
     fileContent
   );
 
+  // 変更メタデータを計算
+  const lines = fileContent.split("\n");
+  const changeMetadata = {
+    filePath: absPath,
+    startLine: 1,
+    endLine: 0, // 新規ファイルなので before は 0 行
+    newEndLine: lines.length,
+  };
+
   return {
     ok: true,
     data: `created: ${filepath(absPath)}\n\n${contentPreview}\n${diagnosticsOutput}`,
+    changes: [changeMetadata],
   };
 }
 

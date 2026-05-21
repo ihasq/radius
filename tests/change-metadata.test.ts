@@ -3,9 +3,9 @@
  */
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
-import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupTestRadiusHome, cleanupTestRadiusHome } from "./helpers/test-isolation";
 import { sendRequest } from "../src/ipc/client";
+import { radius } from "./helpers/radius";
 import { writeFileSync, mkdirSync, readdirSync, existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir, homedir } from "node:os";
@@ -14,11 +14,11 @@ let tmpDir: string;
 
 beforeAll(async () => {
   setupTestRadiusHome("change-metadata");
-  await startDaemon();
+  // デーモンを起動
+  await radius(["ping"]);
 });
 
 afterAll(async () => {
-  await stopDaemon();
   cleanupTestRadiusHome();
 });
 

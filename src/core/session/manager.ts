@@ -266,14 +266,7 @@ export class SessionManager {
             // HistoryTracker で undo
             const undoResult = await historyTracker.undo();
             if (undoResult) {
-              // 変更されたファイルの didClose を送信
-              for (const change of undoResult.changes) {
-                const client = await lspManager.getClient(change.filePath, this.projectRoot);
-                if (client) {
-                  const uri = `file://${change.filePath}`;
-                  client.closeDocument(uri);
-                }
-              }
+              // BufferManager が document lifecycle を管理するため、LSP通知は不要
               undoDetails.push(`  undone: ${undoResult.command} (${undoResult.description}) [seq:${seq}]`);
             }
           } catch (err) {

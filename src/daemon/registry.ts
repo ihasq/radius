@@ -47,6 +47,8 @@ import type { BufferManager } from "../core/buffer/manager";
 import type { ChangeLedger } from "../core/agent/ledger";
 import type { ConflictManager } from "../core/agent/conflict";
 import type { DiagnosticRegistry } from "../lsp/diagnostic-registry";
+import type { LspClient } from "../lsp/client";
+import type { TsRadManager } from "../core/ts-service/manager";
 
 /** デーモンコンテキスト。 */
 export interface DaemonContext {
@@ -59,6 +61,10 @@ export interface DaemonContext {
   extensionRegistry: ExtensionRegistry;
   extensionLoader: ExtensionLoader;
   bufferManager: BufferManager;
+  /** ミドルウェアで初期化される LSP クライアント（リクエストごとに異なる） */
+  lspClient: LspClient | null;
+  /** TsRadManager - Language Service 永続化マネージャ */
+  tsRadManager: TsRadManager;
 }
 
 /** ハンドラ定義。 */
@@ -94,10 +100,17 @@ export const handlers: HandlerDef[] = [
     },
   },
   {
+    command: "tsrad-clear-cache",
+    handler: async (_request, ctx) => {
+      ctx.tsRadManager.disposeAll();
+      return { ok: true, data: "TsRad cache cleared" };
+    },
+  },
+  {
     command: "read-var",
     requiresSession: true,
     handler: async (request, ctx) => {
-      return await handleReadVar(request.args, ctx.lspManager, ctx.bufferManager);
+      return await handleReadVar(request.args, ctx.lspClient, ctx.bufferManager, ctx.tsRadManager);
     },
   },
   {
@@ -113,7 +126,7 @@ export const handlers: HandlerDef[] = [
       const chainId = (request as any).chainId as string;
       const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
       const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
-      return await handleModifyVar(request.args, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry);
+      return await handleModifyVar(request.args, ctx.lspClient, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry, ctx.tsRadManager);
     },
   },
   {
@@ -128,7 +141,7 @@ export const handlers: HandlerDef[] = [
       const projectRoot = findProjectRoot(cwd);
       const chainId = (request as any).chainId as string;
       const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
-      return await handleUndo(request.args, ctx.lspManager, historyTracker);
+      return await handleUndo(request.args, ctx.lspManager, historyTracker, ctx.tsRadManager);
     },
   },
   {
@@ -143,7 +156,7 @@ export const handlers: HandlerDef[] = [
       const projectRoot = findProjectRoot(cwd);
       const chainId = (request as any).chainId as string;
       const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
-      return await handleRedo(request.args, ctx.lspManager, historyTracker);
+      return await handleRedo(request.args, ctx.lspManager, historyTracker, ctx.tsRadManager);
     },
   },
   {
@@ -321,7 +334,7 @@ export const handlers: HandlerDef[] = [
       const chainId = (request as any).chainId as string;
       const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
       const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
-      return await handleFix(request.args, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry);
+      return await handleFix(request.args, ctx.lspClient, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry, ctx.tsRadManager);
     },
   },
   {
@@ -337,7 +350,7 @@ export const handlers: HandlerDef[] = [
       const chainId = (request as any).chainId as string;
       const historyTracker = ctx.getHistoryTracker(projectRoot, chainId);
       const diagnosticRegistry = ctx.getDiagnosticRegistry(projectRoot);
-      return await handleFormat(request.args, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry);
+      return await handleFormat(request.args, ctx.lspClient, ctx.lspManager, historyTracker, ctx.bufferManager, diagnosticRegistry);
     },
   },
   // Phase 18: LLM可読ビュー
@@ -352,7 +365,7 @@ export const handlers: HandlerDef[] = [
     command: "hover",
     requiresSession: true,
     handler: async (request, ctx) => {
-      return await handleHover(request.args, ctx.lspManager, ctx.bufferManager);
+      return await handleHover(request.args, ctx.lspClient, ctx.bufferManager, ctx.tsRadManager);
     },
   },
   {
@@ -360,14 +373,14 @@ export const handlers: HandlerDef[] = [
     requiresSession: true,
     handler: async (request, ctx) => {
       const cwd = request.cwd || process.cwd();
-      return await handleProblems(request.args, ctx.lspManager, ctx.bufferManager, cwd);
+      return await handleProblems(request.args, ctx.lspManager, ctx.bufferManager, cwd, ctx.tsRadManager);
     },
   },
   {
     command: "typehierarchy",
     requiresSession: true,
     handler: async (request, ctx) => {
-      return await handleTypeHierarchy(request.args, ctx.lspManager, ctx.bufferManager);
+      return await handleTypeHierarchy(request.args, ctx.lspClient, ctx.bufferManager);
     },
   },
   {
@@ -381,7 +394,7 @@ export const handlers: HandlerDef[] = [
     command: "codelens",
     requiresSession: true,
     handler: async (request, ctx) => {
-      return await handleCodeLens(request.args, ctx.lspManager, ctx.bufferManager);
+      return await handleCodeLens(request.args, ctx.lspClient, ctx.bufferManager);
     },
   },
   // Phase 19: Language Configuration / Snippets / Semantic Tokens / Tasks
@@ -422,7 +435,7 @@ export const handlers: HandlerDef[] = [
     command: "tokens",
     requiresSession: true,
     handler: async (request, ctx) => {
-      return await handleTokens(request.args, ctx.lspManager, ctx.bufferManager);
+      return await handleTokens(request.args, ctx.lspClient, ctx.bufferManager, ctx.tsRadManager);
     },
   },
   {

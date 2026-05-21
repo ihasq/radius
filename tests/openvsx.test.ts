@@ -4,7 +4,6 @@
 
 import { test, expect, describe, beforeAll, afterAll } from "bun:test";
 import { radius } from "./helpers/radius";
-import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupTestRadiusHome, cleanupTestRadiusHome } from "./helpers/test-isolation";
 import { spawnSync } from "bun";
 
@@ -19,11 +18,9 @@ const NETWORK_AVAILABLE = (() => {
 
 beforeAll(async () => {
   setupTestRadiusHome("openvsx");
-  await startDaemon();
 });
 
 afterAll(async () => {
-  await stopDaemon();
   cleanupTestRadiusHome();
 });
 

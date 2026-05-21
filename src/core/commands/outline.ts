@@ -12,6 +12,7 @@ import type { LspManager } from "../../lsp/manager";
 import type { BufferManager } from "../buffer/manager";
 import { SymbolKindNames, type LspDocumentSymbol } from "../../lsp/types";
 import { errorResponse } from "../../shared/output";
+import { TsRad, type RadSymbol } from "../ts-service";
 
 /**
  * outline コマンドハンドラ。
@@ -37,20 +38,26 @@ export async function handleOutline(
   const uri = `file://${absPath}`;
   const relativePath = relative(projectRoot, absPath);
 
-  // LSPクライアントを取得
-  const client = await lspManager.getClient(absPath, projectRoot);
-
-  if (!client) {
-    // LSP不可時のフォールバック
-    return generateTextBasedOutline(absPath, relativePath, bufferManager);
-  }
-
   // ファイル内容を取得
   let content: string;
   try {
     content = bufferManager.getContent(absPath);
   } catch (err) {
     return errorResponse(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // TypeScript ファイルの場合は TsRad を使用（depth-1: 構文解析のみ）
+  const isTypeScript = absPath.endsWith(".ts") || absPath.endsWith(".tsx");
+  if (isTypeScript) {
+    return generateTsRadOutline(absPath, relativePath, content);
+  }
+
+  // LSPクライアントを取得
+  const client = await lspManager.getClient(absPath, projectRoot);
+
+  if (!client) {
+    // LSP不可時のフォールバック
+    return generateTextBasedOutline(absPath, relativePath, bufferManager);
   }
 
   const languageId = getLanguageId(absPath);
@@ -65,7 +72,7 @@ export async function handleOutline(
     client.closeDocument(uri);
 
     if (!symbols || symbols.length === 0) {
-      return { ok: true, data: "no symbols found" };
+      return { ok: true, data: "[LSP] no symbols found" };
     }
 
     // 出力生成
@@ -93,6 +100,62 @@ export async function handleOutline(
   } catch (err) {
     client.closeDocument(uri);
     throw err;
+  }
+}
+
+/**
+ * TsRad を使用した TypeScript outline 生成（depth-1: 構文解析のみ）。
+ */
+function generateTsRadOutline(
+  absPath: string,
+  relativePath: string,
+  content: string
+): IpcResponse {
+  try {
+    const tsRad = new TsRad();
+    const sourceFile = tsRad.parseFile(absPath, content);
+    const symbols = tsRad.getSymbols(sourceFile);
+
+    if (symbols.length === 0) {
+      return { ok: true, data: "=== TSRAD DEBUG v2 === no symbols found" };
+    }
+
+    // 出力生成
+    const output: string[] = [`outline: ${relativePath}`, ""];
+    let count = 0;
+
+    function renderSymbols(syms: RadSymbol[], depth: number) {
+      for (const sym of syms) {
+        const indent = "  ".repeat(depth);
+        const exported = sym.exported ? "export " : "";
+        output.push(`${indent}${exported}${sym.kind} ${sym.name} [line ${sym.line}]`);
+        count++;
+
+        if (sym.children && sym.children.length > 0) {
+          renderSymbols(sym.children, depth + 1);
+        }
+      }
+    }
+
+    renderSymbols(symbols, 0);
+    output.push("", `${count} symbol(s)`);
+
+    // コンテキスト追加（depth-1: module specifier のみ）
+    const exports = tsRad.getExports(sourceFile);
+    const imports = tsRad.getImports(sourceFile);
+
+    const contextLines: string[] = ["## context"];
+    if (exports.length > 0) {
+      contextLines.push(`exports: ${exports.join(", ")}`);
+    }
+    if (imports.length > 0) {
+      const importModules = imports.map(imp => imp.moduleSpecifier);
+      contextLines.push(`imports: ${importModules.join(", ")}`);
+    }
+
+    return { ok: true, data: output.join("\n") + "\n" + contextLines.join("\n") };
+  } catch (err) {
+    return errorResponse(`TsRad parse failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -166,7 +229,7 @@ function generateTextBasedOutline(
   }
 
   if (count === 0) {
-    return { ok: true, data: "no symbols found" };
+    return { ok: true, data: "[TextBased] no symbols found" };
   }
 
   output.push("", `${count} symbol(s)`);

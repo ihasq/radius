@@ -4,7 +4,6 @@
 
 import { test, expect, describe, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { radius } from "./helpers/radius";
-import { startDaemon, stopDaemon } from "./helpers/daemon";
 import { setupFixture, cleanupFixture } from "./helpers/fixtures";
 import { setupTestRadiusHome, cleanupTestRadiusHome } from "./helpers/test-isolation";
 import { join } from "node:path";
@@ -15,11 +14,9 @@ let extensionsDir: string;
 
 beforeAll(async () => {
   setupTestRadiusHome("extension-host");
-  await startDaemon();
 });
 
 afterAll(async () => {
-  await stopDaemon();
   cleanupTestRadiusHome();
 });
 
@@ -182,9 +179,7 @@ describe("extension loader", () => {
     await radius(["ext", "install", extPath]);
 
     // daemon 再起動で拡張をロード
-    await stopDaemon();
   cleanupTestRadiusHome();
-    await startDaemon();
 
     // lsp", "list で server が認識されているか確認
     const lspResult = await radius(["lsp", "list"]);
@@ -202,9 +197,7 @@ describe("extension loader", () => {
     await radius(["ext", "install", extPath]);
 
     // daemon 再起動で拡張をロード
-    await stopDaemon();
   cleanupTestRadiusHome();
-    await startDaemon();
 
     // typescript には server/ がないので、フォールバックテーブルを使用
     const lspResult = await radius(["lsp", "list"]);

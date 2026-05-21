@@ -2,17 +2,21 @@
  * read-var コマンドハンドラ。
  *
  * 指定ファイル内の変数の定義・参照箇所を、周辺コンテキスト付きで返す。
+ * depth-3: TypeScript ファイルは TsRad (Language Service) でプロジェクト全体の参照を解決
  * LSPが利用可能な場合はセマンティックな参照解決を行い、
  * 利用不可能な場合はテキスト検索にフォールバックする。
  */
 
+import ts from "typescript";
 import { resolve } from "node:path";
-import { LspManager, resolveLanguageId } from "../../lsp/manager";
+import { readFileSync } from "node:fs";
 import { findProjectRoot } from "../../shared/project";
+import type { LspClient } from "../../lsp/client";
 import type { LspLocation } from "../../lsp/types";
 import type { IpcResponse } from "../../shared/types";
 import type { BufferManager } from "../buffer/manager";
 import { errorResponse } from "../../shared/output";
+import type { TsRadManager } from "../ts-service/manager";
 
 /** 各出現箇所の前後に含めるコンテキスト行数。 */
 const CONTEXT_LINES = 3;
@@ -32,7 +36,7 @@ interface ReadVarResult {
   variable: string;
   file: string;
   projectRoot: string;
-  engine: "lsp" | "text";
+  engine: "ts-rad" | "lsp" | "text";
   occurrences: Occurrence[];
 }
 
@@ -89,21 +93,14 @@ function escapeRegex(s: string): string {
  * LSPを使用した参照解決。
  */
 async function lspSearch(
-  lspManager: LspManager,
+  client: LspClient | null,
   filePath: string,
-  projectRoot: string,
   lines: string[],
   varName: string
 ): Promise<Occurrence[] | null> {
-  const client = await lspManager.getClient(filePath, projectRoot);
   if (!client) return null;
 
   const uri = `file://${filePath}`;
-  const languageId = resolveLanguageId(filePath);
-  const content = lines.join("\n");
-
-  // ドキュメントを開く。
-  client.openDocument(uri, languageId, content);
 
   // 変数名の最初の出現位置を探す（LSP references のアンカーとして使用）。
   const pattern = new RegExp(`\\b${escapeRegex(varName)}\\b`);
@@ -127,9 +124,7 @@ async function lspSearch(
 
   while (attempt < MAX_RETRIES) {
     // クライアントの生存確認
-    if (!client.isAlive) {
-      return null;
-    }
+    if (!client.isAlive) return null;
 
     try {
       locations = await client.getReferences(uri, {
@@ -146,9 +141,7 @@ async function lspSearch(
     }
 
     attempt++;
-    if (attempt >= MAX_RETRIES) {
-      return null;
-    }
+    if (attempt >= MAX_RETRIES) return null;
 
     await Bun.sleep(RETRY_INTERVAL_MS);
   }
@@ -187,13 +180,116 @@ async function lspSearch(
 }
 
 /**
+ * TsRad (depth-3) を使用した参照解決。
+ * プロジェクト全体の参照を検索する。
+ */
+function tsRadSearch(
+  filePath: string,
+  projectRoot: string,
+  lines: string[],
+  varName: string,
+  bufferManager: BufferManager,
+  tsRadManager: TsRadManager
+): Occurrence[] | null {
+  try {
+    // TsRadManager から Language Service を取得
+    const service = tsRadManager.getService(projectRoot, 3);
+
+    // 変数名の最初の出現位置を探す
+    const pattern = new RegExp(`\\b${escapeRegex(varName)}\\b`);
+    let anchorLine = -1;
+    let anchorChar = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const match = pattern.exec(lines[i]);
+      if (match) {
+        anchorLine = i;
+        anchorChar = match.index;
+        break;
+      }
+    }
+
+    if (anchorLine === -1) {
+      return null;
+    }
+
+    // ファイル内の位置を計算
+    let offset = 0;
+    for (let i = 0; i < anchorLine; i++) {
+      offset += lines[i].length + 1; // +1 for newline
+    }
+    offset += anchorChar;
+
+    // findReferences を呼び出し
+    const references = service.findReferences(filePath, offset);
+
+    if (!references || references.length === 0) {
+      return null;
+    }
+
+    const occurrences: Occurrence[] = [];
+    const seen = new Set<string>();
+
+    // 全ファイルの参照を収集
+    for (const refGroup of references) {
+      for (const ref of refGroup.references) {
+        const refFile = ref.fileName;
+        const refLine = ref.textSpan.start;
+
+        // ファイル内容を取得
+        let refContent: string;
+        try {
+          refContent = bufferManager.getContent(refFile);
+        } catch {
+          try {
+            refContent = readFileSync(refFile, "utf-8");
+          } catch {
+            continue;
+          }
+        }
+
+        const refLines = refContent.split("\n");
+
+        // offset から行番号を計算
+        let currentOffset = 0;
+        let lineIdx = 0;
+        for (let i = 0; i < refLines.length; i++) {
+          if (currentOffset + refLines[i].length >= refLine) {
+            lineIdx = i;
+            break;
+          }
+          currentOffset += refLines[i].length + 1;
+        }
+
+        const key = `${refFile}:${lineIdx}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        occurrences.push({
+          kind: ref.isDefinition ? "definition" : "reference",
+          line: lineIdx + 1,
+          context: extractContext(refLines, lineIdx),
+        });
+      }
+    }
+
+    // 行番号でソート
+    occurrences.sort((a, b) => a.line - b.line);
+
+    return occurrences.length > 0 ? occurrences : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * read-var コマンドのエントリポイント。
  * daemon/main.ts から呼び出される。
  */
 export async function handleReadVar(
   args: Record<string, unknown>,
-  lspManager: LspManager,
-  bufferManager: BufferManager
+  lspClient: LspClient | null,
+  bufferManager: BufferManager,
+  tsRadManager: TsRadManager
 ): Promise<IpcResponse> {
   const filePath = args.file as string | undefined;
   const varName = args.var as string | undefined;
@@ -215,10 +311,25 @@ export async function handleReadVar(
   const lines = content.split("\n");
   const projectRoot = findProjectRoot(absPath);
 
-  // LSPで試行し、失敗すればテキスト検索にフォールバック。
-  let occurrences = await lspSearch(lspManager, absPath, projectRoot, lines, varName);
-  let engine: "lsp" | "text" = "lsp";
+  // TypeScript ファイルの場合は TsRad (depth-3) を優先
+  const isTypeScript = absPath.endsWith(".ts") || absPath.endsWith(".tsx");
+  let occurrences: Occurrence[] | null = null;
+  let engine: "ts-rad" | "lsp" | "text" = "lsp";
 
+  if (isTypeScript) {
+    occurrences = tsRadSearch(absPath, projectRoot, lines, varName, bufferManager, tsRadManager);
+    if (occurrences && occurrences.length > 0) {
+      engine = "ts-rad";
+    }
+  }
+
+  // TsRad 失敗時は LSP で試行
+  if (!occurrences || occurrences.length === 0) {
+    occurrences = await lspSearch(lspClient, absPath, lines, varName);
+    engine = "lsp";
+  }
+
+  // LSP 失敗時はテキスト検索にフォールバック
   if (!occurrences || occurrences.length === 0) {
     occurrences = textSearch(lines, varName);
     engine = "text";

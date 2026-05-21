@@ -1,37 +1,20 @@
 /**
- * テスト並列化サポート
+ * テスト分離ヘルパー（後方互換性用）
  *
- * 各テストファイルの beforeAll/afterAll で使用するヘルパー関数。
- * 一意の RADIUS_HOME を生成し、テスト終了後にクリーンアップする。
+ * 直列実行では RADIUS_HOME 分離は不要。
+ * これらの関数は後方互換性のためにエクスポートされるが、何もしない。
  */
-
-import { mkdtempSync, rmSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-
-let testRadiusHome: string | null = null;
 
 /**
- * テスト専用の RADIUS_HOME を設定する。
- * beforeAll で呼び出す。
+ * @deprecated 直列実行では不要
  */
-export function setupTestRadiusHome(testGroupId: string): void {
-  testRadiusHome = mkdtempSync(join(tmpdir(), `radius-test-${testGroupId}-`));
-  process.env.RADIUS_HOME = testRadiusHome;
+export function setupTestRadiusHome(_testGroupId: string): void {
+  // No-op
 }
 
 /**
- * テスト専用の RADIUS_HOME をクリーンアップする。
- * afterAll で呼び出す。
+ * @deprecated 直列実行では不要
  */
 export function cleanupTestRadiusHome(): void {
-  if (testRadiusHome) {
-    try {
-      rmSync(testRadiusHome, { recursive: true, force: true });
-    } catch {
-      // クリーンアップ失敗は無視
-    }
-    delete process.env.RADIUS_HOME;
-    testRadiusHome = null;
-  }
+  // No-op
 }
