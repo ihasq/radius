@@ -72,7 +72,6 @@ tee
 tests/fixtures/medium-project/
 tests/fixtures/large-project/
 tests/fixtures/xlarge-project/
-tests/fixtures/heavy-project/
 
 # Development scripts and reports
 scripts/audit-*.sh
