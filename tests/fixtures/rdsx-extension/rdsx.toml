@@ -1,0 +1,14 @@
+[extension]
+name = "rdsx-test"
+version = "1.0.0"
+kind = "analyzer"
+description = "Test analyzer for RDSX"
+entry = "src/main.ts"
+
+[analyzer]
+language_ids = ["test"]
+depth_max = 4
+
+[runtime]
+engine = "bun"
+min_version = "1.0.0"

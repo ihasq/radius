@@ -1,0 +1,14 @@
+[extension]
+name = "rdsx-rs"
+version = "0.1.0"
+kind = "analyzer"
+description = "Rust analyzer adapter for Radius"
+entry = "src/adapter.ts"
+
+[analyzer]
+language_ids = ["rust"]
+depth_max = 4
+
+[runtime]
+engine = "bun"
+min_version = "1.0.0"

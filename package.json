@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "adm-zip": "^0.5.17",
+    "smol-toml": "^1.6.1",
     "typescript": "^6.0.3",
     "typescript-language-server": "^5.2.0",
     "vscode-textbuffer": "^1.0.0"

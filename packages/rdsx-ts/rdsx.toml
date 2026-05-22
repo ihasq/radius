@@ -1,0 +1,14 @@
+[extension]
+name = "rdsx-ts"
+version = "1.0.0"
+kind = "analyzer"
+description = "TypeScript analyzer for Radius"
+entry = "src/provider.ts"
+
+[analyzer]
+language_ids = ["typescript", "typescriptreact"]
+depth_max = 4
+
+[runtime]
+engine = "bun"
+min_version = "1.0.0"
