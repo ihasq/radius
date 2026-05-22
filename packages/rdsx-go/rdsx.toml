@@ -1,12 +1,12 @@
 [extension]
-name = "rdsx-rs"
-version = "0.1.0"
+name = "rdsx-go"
+version = "0.0.1"
 kind = "analyzer"
-description = "Rust analyzer adapter for Radius"
+description = "Go analyzer adapter for Radius (gopls)"
 entry = "src/main.ts"
 
 [analyzer]
-language_ids = ["rust"]
+language_ids = ["go"]
 depth_max = 4
 
 [runtime]

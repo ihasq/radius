@@ -5,7 +5,8 @@
  */
 
 import { parseRdsxToml } from "./toml-parser";
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, join } from "node:path";
+import { readdirSync } from "node:fs";
 import type { RdsxRegistry } from "./registry";
 
 /**
@@ -38,4 +39,31 @@ export async function loadFromToml(
 
   // Register the extension
   registry.register(extension);
+}
+
+/**
+ * Load all RDSX packages from a directory
+ *
+ * @param packagesDir - Directory containing RDSX packages
+ * @param registry - RdsxRegistry instance to register extensions
+ * @param radiusHome - Radius home directory for prefix resolution
+ */
+export async function loadAllPackages(
+  packagesDir: string,
+  registry: RdsxRegistry,
+  radiusHome: string
+): Promise<void> {
+  const dirs = readdirSync(packagesDir, { withFileTypes: true }).filter(
+    (d) => d.isDirectory() && d.name.startsWith("rdsx-")
+  );
+
+  for (const dir of dirs) {
+    const tomlPath = join(packagesDir, dir.name, "rdsx.toml");
+    try {
+      await loadFromToml(tomlPath, registry, radiusHome);
+    } catch (e) {
+      // LSP not installed or activation failed - skip this package
+      // This is expected for external LSPs like rust-analyzer, gopls, etc.
+    }
+  }
 }

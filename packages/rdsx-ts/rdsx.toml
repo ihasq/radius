@@ -3,7 +3,7 @@ name = "rdsx-ts"
 version = "1.0.0"
 kind = "analyzer"
 description = "TypeScript analyzer for Radius"
-entry = "src/provider.ts"
+entry = "src/main.ts"
 
 [analyzer]
 language_ids = ["typescript", "typescriptreact"]
