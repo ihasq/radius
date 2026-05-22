@@ -290,6 +290,38 @@ async function runCliMode(): Promise<void> {
       const carets = "^".repeat(response.tag.length);
       console.log(muted(`${spaces}${carets} use this`));
     }
+
+    // Command suggestions
+    if (response.tag && response.data && typeof response.data === "string") {
+      const { getSuggestions } = await import("../core/suggest/engine");
+
+      // Extract primary file from args (most commands have file as first arg)
+      let fileArg = args.find((arg: string) => !arg.startsWith("--") && arg !== commandName);
+
+      // For create-all, extract file from response data
+      if (!fileArg && commandName === "create-all") {
+        const createdMatch = response.data.match(/created: (.+\.(?:ts|js|tsx|jsx|rs|cpp|go|zig))/);
+        if (createdMatch) {
+          fileArg = createdMatch[1];
+        }
+      }
+
+      if (fileArg) {
+        const suggestions = getSuggestions(
+          commandName,
+          response.data,
+          fileArg,
+          response.tag
+        );
+
+        if (suggestions.length > 0) {
+          console.log(muted("> suggested:"));
+          for (const suggestion of suggestions) {
+            console.log(muted(`>   ${suggestion}`));
+          }
+        }
+      }
+    }
   }
 }
 
