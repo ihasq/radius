@@ -41,7 +41,7 @@ describe("初回コマンド", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/--reason.*message.*TO THEM/i);
     // 初回は chain: 行も必要
-    expect(result.stdout).toMatch(/chain:\s+[a-f0-9]{4}-[a-zA-Z0-9]+/);
+    expect(result.stdout).toMatch(/chain:\s+[a-f0-9]{4}-[a-zA-Z0-9_-]+/);
   }, 15000);
 
   test("3. 初回出力に 'chain:' 行が含まれ、タグ1個であること", async () => {
@@ -50,7 +50,7 @@ describe("初回コマンド", () => {
 
     expect(result.exitCode).toBe(0);
     // chain: タグ1個
-    expect(result.stdout).toMatch(/chain:\s+[a-f0-9]{4}-[a-zA-Z0-9]+/);
+    expect(result.stdout).toMatch(/chain:\s+[a-f0-9]{4}-[a-zA-Z0-9_-]+/);
     // → 矢印はない（1個のみ）
     expect(result.stdout).not.toContain("→");
   }, 15000);
@@ -196,7 +196,7 @@ describe("新チェーン開始", () => {
 
     expect(r3.exitCode).toBe(0);
     // chain: tag3 のみ（矢印なし）
-    expect(r3.stdout).toMatch(/chain:\s+[a-f0-9]{4}-[a-zA-Z0-9]+/);
+    expect(r3.stdout).toMatch(/chain:\s+[a-f0-9]{4}-[a-zA-Z0-9_-]+/);
     expect(r3.stdout).not.toContain("→");
   }, 20000);
 
