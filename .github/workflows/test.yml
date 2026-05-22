@@ -206,6 +206,45 @@ jobs:
         env:
           FORCE_COLOR: "0"
 
+  test-phases:
+    needs: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Install fixture dependencies
+        run: |
+          cd tests/fixtures/ts-project && bun install
+      - name: Build radiusd binary
+        run: bash scripts/build.sh
+      - name: Run Phase A-C tests
+        run: |
+          bun test --timeout 60000 \
+            tests/create-enhanced.test.ts \
+            tests/tag-chain-visual.test.ts \
+            tests/llm-readable-view.test.ts
+        env:
+          FORCE_COLOR: "0"
+      - name: Run Phase 7-8 RDSX tests
+        run: |
+          bun test --timeout 60000 \
+            tests/rdsx-spec.test.ts \
+            tests/rdsx-rs.test.ts \
+            tests/rdsx-cpp.test.ts \
+            tests/rdsx-go.test.ts \
+            tests/rdsx-zig.test.ts
+        env:
+          FORCE_COLOR: "0"
+      - name: Run Phase 9 suggestion tests
+        run: |
+          bun test --timeout 60000 \
+            tests/command-suggest.test.ts
+        env:
+          FORCE_COLOR: "0"
+
   build:
     needs: typecheck
     runs-on: ubuntu-latest
