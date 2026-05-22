@@ -172,8 +172,11 @@ describe("Group B: Suggestion format accuracy", () => {
 
     const suggestedCmd = suggestionMatch![1];
 
+    // Replace 'radius' with actual binary path for execution
+    const executableCmd = suggestedCmd.replace(/^radius\s/, `${radiusCmd} `);
+
     // Try to execute it (should not crash)
-    const execResult = spawnSync("bash", ["-c", suggestedCmd], {
+    const execResult = spawnSync("bash", ["-c", executableCmd], {
       encoding: "utf-8",
       cwd: process.cwd(),
     });
