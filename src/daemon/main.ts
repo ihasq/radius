@@ -11,7 +11,7 @@ import { spawn } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { IpcServer } from "../ipc/server";
 import { sendRequest } from "../ipc/client";
-import { getPidPath, getSocketPath, getRadiusHome } from "../shared/paths";
+import { getPidPath, getSocketPath, getRadiusHome, resolveSessionId } from "../shared/paths";
 import { findProjectRoot } from "../shared/project";
 import { LspManager } from "../lsp/manager";
 import { HistoryTracker } from "../core/history/tracker";
@@ -181,7 +181,9 @@ async function runCliMode(): Promise<void> {
   // リクエスト構築
   let request: IpcRequest;
   try {
-    request = buildRequestWithTag(cmdDef, args.slice(1), process.cwd(), stdinContent);
+    // セッションIDを解決（RADIUS_SESSION env var → file → 新規生成）
+    const sessionId = resolveSessionId();
+    request = buildRequestWithTag(cmdDef, args.slice(1), process.cwd(), stdinContent, sessionId);
   } catch (usageMessage) {
     console.error(usageMessage);
     process.exit(1);
@@ -215,7 +217,22 @@ async function runCliMode(): Promise<void> {
     }
   }
 
-  // データ出力
+  // 出力フォーマット判定
+  const outputFormat = process.env.RADIUS_FORMAT || "default";
+
+  // JSON モード — 全出力を構造化 JSON で
+  if (outputFormat === "json") {
+    const jsonOutput: Record<string, unknown> = {
+      ok: response.ok,
+    };
+    if (response.data !== undefined) jsonOutput.data = response.data;
+    if (response.warnings) jsonOutput.warnings = response.warnings;
+    if (response.error) jsonOutput.error = response.error;
+    console.log(JSON.stringify(jsonOutput));
+    process.exit(response.ok ? 0 : 1);
+  }
+
+  // データ出力（compact / default 共通）
   if (response.data !== undefined) {
     if (typeof response.data === "string") {
       // NO_COLOR が設定されている場合はANSIコードを除去
@@ -226,8 +243,8 @@ async function runCliMode(): Promise<void> {
     }
   }
 
-  // 成功時tips
-  if (response.data !== undefined && typeof response.data === "string") {
+  // 成功時tips（compact/jsonでは抑制）
+  if (outputFormat === "default" && response.data !== undefined && typeof response.data === "string") {
     const { getSuccessTip } = await import("../cli/tips");
     const successTip = getSuccessTip(commandName, response.data);
     if (successTip) {
@@ -235,8 +252,8 @@ async function runCliMode(): Promise<void> {
     }
   }
 
-  // タグ出力
-  if (response.tag) {
+  // タグ出力（compact / json モードでは抑制）
+  if (response.tag && outputFormat === "default") {
     const tagHistory = response.tagHistory || [];
     const historyLength = tagHistory.length;
 
@@ -512,32 +529,50 @@ for (const handlerDef of handlers) {
         const primaryFile = (request.args.file as string) || (request.args.path as string) || positionalArgs?.[0] || "";
         const projectRoot = findProjectRoot(primaryFile || cwd);
 
-        // Hotfix: タグからチェーンIDを解決
+        // タグまたはセッションIDからチェーンIDを解決
         const tag = request.tag;
+        const sessionId = request.sessionId;
 
         // Hotfix: --agent の非推奨警告
         const deprecationWarnings: string[] = [];
         if (request.args.agent !== undefined) {
-          deprecationWarnings.push("warning: --agent is deprecated. Agent identity is determined by --tag.");
+          deprecationWarnings.push("warning: --agent is deprecated. Agent identity is determined by --tag or RADIUS_SESSION.");
         }
 
-        // タグからチェーンIDを解決（タグなし = 新しいチェーンを開始）
-        const chainId = await SessionManager.resolveChainId(projectRoot, tag);
+        // チェーンID解決: --tag が優先、なければ sessionId、どちらもなければ新規
+        const isSessionMode = (tag === undefined || tag === null) && sessionId !== undefined;
+        const chainId = isSessionMode
+          ? await SessionManager.resolveSessionChainId(projectRoot, sessionId)
+          : await SessionManager.resolveChainId(projectRoot, tag);
         const isWriteCommand = handlerDef.isWriteCommand ?? false;
 
-        debug("cmd", `command=${request.command}, tag=${tag}, chainId=${chainId}`);
+        debug("cmd", `command=${request.command}, tag=${tag}, sessionId=${sessionId}, chainId=${chainId}, isSessionMode=${isSessionMode}`);
 
         // チェーン別のセッション・履歴マネージャを取得
         const sessionManager = getSessionManager(projectRoot, chainId);
         const historyTracker = getHistoryTracker(projectRoot, chainId);
 
-        // 1. タグ検証と巻き戻し
-        const { warnings, currentSeq, rejected } = await sessionManager.validateAndRewind(
-          request.tag,
-          historyTracker,
-          lspManager,
-          isWriteCommand
-        );
+        // 1. タグ検証と巻き戻し（sessionId モードの場合はスキップ）
+        let warnings: string[];
+        let currentSeq: number;
+        let rejected: boolean;
+        if (isSessionMode) {
+          // sessionId モード: rewind 検知なし、常に最新状態で続行
+          await sessionManager.ensureInit();
+          currentSeq = sessionManager.getCurrentSeq();
+          warnings = [];
+          rejected = false;
+        } else {
+          const result = await sessionManager.validateAndRewind(
+            request.tag,
+            historyTracker,
+            lspManager,
+            isWriteCommand
+          );
+          warnings = result.warnings;
+          currentSeq = result.currentSeq;
+          rejected = result.rejected;
+        }
 
         // 拒否された場合はエラーを返す（即座に）
         if (rejected) {
@@ -681,13 +716,18 @@ for (const handlerDef of handlers) {
           }
         }
 
-        // 成功時: タグを生成
+        // 成功時: タグ生成 or セッション進行
         if (response.ok) {
           // 初回タグかどうか（currentSeqが0の状態で最初のタグを発行する場合）
           const isFirstTag = currentSeq === 0;
 
-          let newTag: string;
-          if (currentSeq === 0 && request.tag === undefined) {
+          let newTag: string | undefined;
+          if (isSessionMode) {
+            // sessionId モード: タグ生成なし、シーケンスのみ進める
+            const latestChangesetId = isWriteCommand ? await historyTracker.getLatestChangesetId() : null;
+            await sessionManager.advanceSeq(latestChangesetId);
+            newTag = undefined;
+          } else if (currentSeq === 0 && request.tag === undefined) {
             // 初回コマンド（タグなし）: currentTag() で初期タグを生成
             newTag = await sessionManager.currentTag();
           } else {
@@ -781,15 +821,15 @@ for (const handlerDef of handlers) {
           // 非推奨警告とvalidateAndRewindからの警告をマージ
           const allWarnings = [...deprecationWarnings, ...warnings];
 
-          // タグ履歴を取得（チェーン可視化用）
-          const tagHistory = await sessionManager.getTagHistory();
+          // タグ履歴を取得（チェーン可視化用、sessionId モードでは不要）
+          const tagHistory = isSessionMode ? [] : await sessionManager.getTagHistory();
 
           return {
             ...response,
             data: finalData,
-            tag: newTag,
-            isFirstTag,
-            tagHistory,
+            tag: isSessionMode ? undefined : newTag,
+            isFirstTag: isSessionMode ? undefined : isFirstTag,
+            tagHistory: isSessionMode ? undefined : tagHistory,
             warnings: allWarnings.length > 0 ? allWarnings : undefined,
           };
         }

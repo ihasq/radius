@@ -10,7 +10,7 @@ import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { sendRequest } from "../ipc/client";
-import { getSocketPath, getPidPath } from "../shared/paths";
+import { getSocketPath, getPidPath, getRadiusHome, resolveSessionId } from "../shared/paths";
 import { findCommand, generateUsage, buildRequestWithTag } from "./registry";
 import type { IpcRequest } from "../shared/types";
 import { readStdin, isStdinAvailable } from "../shared/stdin";
@@ -166,10 +166,13 @@ async function main(): Promise<void> {
     stdinContent = await readStdin();
   }
 
+  // A: セッションID解決（RADIUS_SESSION env var → file → 新規生成）
+  const sessionId = resolveSessionId();
+
   // A: リクエスト構築
   let request: IpcRequest;
   try {
-    request = buildRequestWithTag(cmdDef, args.slice(1), process.cwd(), stdinContent);
+    request = buildRequestWithTag(cmdDef, args.slice(1), process.cwd(), stdinContent, sessionId);
   } catch (usageMessage) {
     console.error(usageMessage);
     process.exit(1);
@@ -213,10 +216,25 @@ async function main(): Promise<void> {
     }
   }
 
-  // A: データ出力
+  // A: 出力フォーマット判定
+  const outputFormat = process.env.RADIUS_FORMAT || "default";
+
+  // A: JSON モード — 全出力を構造化 JSON で
+  if (outputFormat === "json") {
+    const jsonOutput: Record<string, unknown> = {
+      ok: response.ok,
+    };
+    if (response.data !== undefined) jsonOutput.data = response.data;
+    if (response.warnings) jsonOutput.warnings = response.warnings;
+    if (response.error) jsonOutput.error = response.error;
+    console.log(JSON.stringify(jsonOutput));
+    process.exit(response.ok ? 0 : 1);
+  }
+
+  // A: データ出力（compact / default 共通）
   if (response.data !== undefined) {
     if (typeof response.data === "string") {
-      // NO_COLOR が設定されている場合はANSIコードを除去
+      // ANSI除去（jsonでない場合もNO_COLOR対応）
       const output = shouldStripColors() ? stripAnsi(response.data) : response.data;
       console.log(output);
     } else {
@@ -224,8 +242,8 @@ async function main(): Promise<void> {
     }
   }
 
-  // A: タグ出力
-  if (response.tag) {
+  // A: タグ出力（compact モードでは抑制）
+  if (response.tag && outputFormat !== "compact") {
     console.log(muted("\n---"));
     console.log(`radius-tag: ${response.tag}`);
     console.log("");

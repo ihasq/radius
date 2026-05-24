@@ -65,7 +65,7 @@ resolved:
 2. Code actions include quick fixes (unused imports, type errors) and refactors
 3. Formatting follows the project's LSP configuration (tabs vs spaces, etc.)
 4. All changes are tracked - use `radius undo` to revert
-5. Pass `--tag` from previous response to maintain session state
+5. Set `RADIUS_SESSION` to share state across commands; use `--tag` as fallback
 6. Check resolved section to confirm the intended diagnostic was fixed
 
 ## Examples
@@ -91,9 +91,12 @@ radius format src/api.ts
 Fix and format workflow:
 
 ```bash
-# First fix issues
+# Option A: Session ID mode (recommended)
+export RADIUS_SESSION=sess-fix
 radius fix src/api.ts
+radius format src/api.ts
 
-# Then format
+# Option B: Tag chain mode (backward compat)
+radius fix src/api.ts
 radius format src/api.ts --tag <previous-tag>
 ```

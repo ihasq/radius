@@ -20,8 +20,9 @@ Radius is a daemon-based code editing system designed for AI coding agents. It p
 - **Git integration**: Conflict resolution and diff viewing
 - **Import-aware file renaming**: Automatically update import statements across the project
 - **Diagnostic tracking**: Persistent diagnostic IDs (D-NNN) with resolution detection and emoji indicators
-- **Multi-agent support**: Tag-chain based agent identification with conflict detection and resolution
-- **Session management**: Dog tag-based conversation tracking with automatic rewind detection
+- **Multi-agent support**: Session-based agent identification with conflict detection and resolution
+- **Session management**: Implicit session tracking via `RADIUS_SESSION` env var or explicit `--tag` chains
+- **LLM-optimized output**: `RADIUS_FORMAT=compact|json` for minimal or machine-readable responses
 - **VSCode extension support**: Install extensions from Open VSX registry for language support
 - **External change detection**: Automatically detect and handle external file modifications
 - **Memory-efficient buffering**: LRU cache with Piece Tree text buffer for large file handling
@@ -211,6 +212,14 @@ radius ext list                       # List installed extensions
 radius ext remove <publisher.name>    # Remove extension
 ```
 
+#### Session management
+```bash
+radius session new                    # Create new session (prints session ID)
+radius session list                   # List active sessions
+radius session use <id>               # Switch active session
+radius session close                  # End current session
+```
+
 #### LSP server management
 ```bash
 radius lsp list    # Show registered LSP servers and their sources
@@ -218,7 +227,27 @@ radius lsp list    # Show registered LSP servers and their sources
 
 ### Multi-Agent Support
 
-Radius supports multiple AI agents working on the same project concurrently. Each command returns a tag that identifies the agent's chain of operations.
+Radius supports multiple AI agents working on the same project concurrently. Each agent can operate in one of two modes:
+
+#### Session ID Mode (recommended for LLMs)
+
+Set `RADIUS_SESSION` once — all subsequent commands inherit the session automatically. No tag passing needed.
+
+```bash
+# Start a session
+export RADIUS_SESSION=$(radius session new)
+
+# All commands automatically belong to this session
+radius str-replace file.ts --old "foo" --new "bar"
+radius view file.ts
+radius undo        # Undo last edit in this session
+```
+
+The session ID is persisted in `~/.radius/active-session` and auto-resolved on every command.
+
+#### Tag Chain Mode (backward compatible)
+
+Each command returns a tag that identifies the agent's chain of operations. Useful for explicit multi-agent scenarios.
 
 ```bash
 # Agent A starts working (no tag = new chain)
@@ -235,17 +264,33 @@ radius str-replace file.ts --old "bar" --new "newbar" --reason "fixing typo"
 
 #### Conflict Detection and Resolution
 
-When agents edit overlapping regions, Radius detects conflicts and notifies affected chains:
+When agents edit overlapping regions, Radius detects conflicts and notifies affected sessions:
 
 ```bash
-# List pending notifications for your chain
-radius list-notifications --tag <your-tag>
+# List pending notifications for your session
+radius list-notifications
 
 # Accept another agent's changes
-radius accept-change --conflict <conflict-id> --tag <your-tag>
+radius accept-change --conflict <conflict-id>
 
 # Challenge another agent's changes
-radius challenge-change --conflict <conflict-id> --reason "breaks tests" --tag <your-tag>
+radius challenge-change --conflict <conflict-id> --reason "breaks tests"
+```
+
+### Output Format
+
+Control output verbosity via `RADIUS_FORMAT`:
+
+```bash
+# Minimal output — suppresses tag footer and welcome messages
+RADIUS_FORMAT=compact radius str-replace file.ts --old "A" --new "B"
+
+# Machine-readable JSON — use for LLM tool parsing
+RADIUS_FORMAT=json radius ping
+# → {"ok":true,"data":"pong"}
+
+# Default (human-readable)
+radius ping
 ```
 
 ### Debug Logging
@@ -263,6 +308,16 @@ RADIUS_DEBUG=ipc,session radius view file.ts
 ```
 
 Debug output goes to stderr. For daemon-side logs, check `~/.radius/daemon-debug.log`.
+
+### Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `RADIUS_SESSION` | Session ID for implicit session tracking (no `--tag` needed) |
+| `RADIUS_FORMAT` | Output mode: `compact` (minimal) or `json` (machine-readable) |
+| `RADIUS_HOME` | Override default `~/.radius` data directory |
+| `RADIUS_DEBUG` | Enable debug logging (`1` or `module1,module2`) |
+| `RADIUS_NO_COLOR` | Disable ANSI color output |
 
 ## Configuration
 
@@ -299,24 +354,25 @@ radius (CLI) ─── Unix Socket IPC ───> radiusd (Daemon)
                     │                     │                     │
               BufferManager          LspManager          HistoryTracker
               (Piece Tree)           (LSP clients)       (Undo/Redo)
-                    │                     │
-                    │              ExtensionLoader
-                    │              (VSCode extensions)
-                    │
-              File System
+                    │                     │                     │
+              File Watcher          ExtensionLoader      SessionManager
+              (fs.watch)            (VSCode extensions)  (Session/Tag)
+                    │                                         │
+              ChangeLedger                              ConflictManager
+              (Edit tracking)                           (Multi-agent)
 ```
 
 ### Components
 
-- **CLI (`radius`)**: Thin client that forwards commands to daemon via Unix socket
-- **Daemon (`radiusd`)**: Long-running process managing buffers, LSP clients, and history
-- **BufferManager**: Piece Tree-based text buffer with mtime tracking and LRU eviction
+- **CLI (`radius`)**: Thin client that forwards commands to daemon via Unix socket with session resolution
+- **Daemon (`radiusd`)**: Long-running process managing buffers, LSP clients, sessions, and history
+- **BufferManager**: Piece Tree-based text buffer with mtime tracking, external change detection, and LRU eviction
 - **LspManager**: Per-project LSP client lifecycle management
 - **ExtensionLoader**: VSCode extension loading with static extraction + activate() fallback
 - **HistoryTracker**: Per-project changeset history for undo/redo operations
-- **SessionManager**: Tag-chain based session tracking with rewind detection
-- **ChangeLedger**: Records all changes with timestamps for conflict detection
-- **ConflictManager**: Detects overlapping edits and manages notifications between agents
+- **SessionManager**: Session-based state tracking with implicit session ID (`RADIUS_SESSION`) or explicit tag-chain (`--tag`) mode
+- **ChangeLedger**: Records all changes with timestamps for multi-agent conflict detection
+- **ConflictManager**: Detects overlapping edits across sessions and external modifications, manages notifications
 
 ## Development
 
@@ -333,7 +389,7 @@ src/
     imports/     # Import statement scanning and rewriting
     conflict/    # Git conflict parsing
     graph/       # Mermaid graph generation (imports, refs, calls)
-    session/     # Tag-chain session management with rewind detection
+    session/     # Session tracking with implicit session ID or tag-chain mode
     agent/       # Multi-agent support (ledger, conflict detection)
   lsp/           # LSP client and transport
   extension-host/# VSCode extension loading

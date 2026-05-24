@@ -70,8 +70,9 @@ resolved:
 2. For str-replace, use enough surrounding context to ensure unique matches
 3. If replacement fails with "multiple matches", add more context to --old
 4. Each operation is recorded in history - use `radius undo` to revert mistakes
-5. Pass `--tag` from previous response to maintain session state
-6. Check diagnostic output after edits to verify no new errors were introduced
+5. Set `RADIUS_SESSION` once to share state across multiple edit commands (no `--tag` needed)
+6. Alternatively, pass `--tag` from previous response to maintain session state (backward compat)
+7. Check diagnostic output after edits to verify no new errors were introduced
 
 ## Examples
 

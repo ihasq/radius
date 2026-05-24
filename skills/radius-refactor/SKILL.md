@@ -60,6 +60,7 @@ diagnostics: ok
 4. All changes are tracked - undo with `radius undo`
 5. For TypeScript/JavaScript, ensure tsconfig.json exists for best results
 6. Check diagnostic output to verify refactor didn't break type safety
+7. Set `RADIUS_SESSION` to avoid passing `--tag` between commands
 
 ## Examples
 

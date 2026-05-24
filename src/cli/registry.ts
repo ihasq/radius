@@ -84,11 +84,14 @@ export function buildRequestWithTag(
   cmd: CommandDef,
   args: string[],
   cwd: string,
-  stdin?: string
+  stdin?: string,
+  sessionId?: string
 ): IpcRequest {
-  // --tag オプションをサポートしない場合はそのまま構築
+  // --tag オプションをサポートしない場合はそのまま構築（sessionId は注入）
   if (cmd.supportsTag === false) {
-    return cmd.buildRequest(args, cwd, stdin);
+    const request = cmd.buildRequest(args, cwd, stdin);
+    if (sessionId) request.sessionId = sessionId;
+    return request;
   }
 
   // --tag を抽出
@@ -98,6 +101,11 @@ export function buildRequestWithTag(
   // tag と cwd を追加
   request.tag = tag;
   request.cwd = cwd;
+
+  // セッションID注入（--tag が指定されていない場合のみ、tag のフォールバックとして）
+  if (!request.sessionId && sessionId && tag === undefined) {
+    request.sessionId = sessionId;
+  }
 
   // --agent を検出（非推奨警告のため）
   const parsed = parseArgs(args);

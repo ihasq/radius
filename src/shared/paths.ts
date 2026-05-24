@@ -1,6 +1,7 @@
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
 import { homedir } from "node:os";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { BUILD_MODE } from "./build-info";
 
 /** Radiusホームディレクトリのパスを返す。ディレクトリは作成しない。 */
@@ -46,4 +47,42 @@ export async function getProjectDir(absolutePath: string): Promise<string> {
   const dir = resolve(ensureRadiusHome(), hash);
   mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+/** アクティブセッションIDを永続化するファイルのパス。 */
+export function getActiveSessionPath(): string {
+  return resolve(ensureRadiusHome(), "active-session");
+}
+
+/**
+ * セッションIDを解決する。
+ * 優先順: RADIUS_SESSION env var → ~/.radius/active-session ファイル → 自動生成
+ * 生成された場合、env var にセットしファイルにも永続化する。
+ */
+export function resolveSessionId(): string {
+  const envId = process.env.RADIUS_SESSION;
+  if (envId) return envId;
+
+  const sessionFile = getActiveSessionPath();
+  if (existsSync(sessionFile)) {
+    try {
+      const fileId = readFileSync(sessionFile, "utf-8").trim();
+      if (fileId) {
+        process.env.RADIUS_SESSION = fileId;
+        return fileId;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const newId = randomUUID();
+  process.env.RADIUS_SESSION = newId;
+  try {
+    mkdirSync(dirname(sessionFile), { recursive: true });
+    writeFileSync(sessionFile, newId + "\n");
+  } catch {
+    // ignore
+  }
+  return newId;
 }

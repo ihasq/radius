@@ -9,6 +9,8 @@ export interface IpcRequest {
   args: Record<string, unknown>;
   /** 会話巻き戻り検知用のドッグタグ（任意）。 */
   tag?: string | null;
+  /** 編集セッション識別子（RADIUS_SESSION 環境変数由来）。tag がない場合に使用。 */
+  sessionId?: string;
   /** 現在の作業ディレクトリ（任意）。 */
   cwd?: string;
   /** 標準入力内容（--stdin使用時、任意）。 */

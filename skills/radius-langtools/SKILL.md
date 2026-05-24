@@ -75,7 +75,8 @@ diagnostics: ⚠️ 1 warning
 3. Use `tokens` to understand code structure for syntax-aware operations
 4. Use `task` to run build/test tasks defined in the project
 5. All edit commands support undo via `radius undo`
-6. Check diagnostic output after snippet insertion for placeholder warnings
+6. Set `RADIUS_SESSION` to avoid passing `--tag` between commands
+7. Check diagnostic output after snippet insertion for placeholder warnings
 
 ## Examples
 
@@ -88,6 +89,10 @@ radius comment src/debug.ts --range 10:25
 Uncomment after debugging:
 
 ```bash
+# Session ID mode (recommended)
+radius comment src/debug.ts --range 10:25 --uncomment
+
+# Tag chain mode (backward compat)
 radius comment src/debug.ts --range 10:25 --uncomment --tag <prev-tag>
 ```
 

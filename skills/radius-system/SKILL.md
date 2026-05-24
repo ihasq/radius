@@ -44,9 +44,20 @@ Output:
 
 ```bash
 RADIUS_HOME                         # Override default ~/.radius directory
+RADIUS_SESSION                      # Session ID for implicit multi-command session
+RADIUS_FORMAT                       # Output mode: "compact" or "json"
 RADIUS_CDN_URL                      # Override update server URL (advanced)
 RADIUS_DEBUG=1                      # Enable debug logging
 ```
+
+| Variable | Purpose |
+|----------|---------|
+| `RADIUS_HOME` | Override default `~/.radius` data directory |
+| `RADIUS_SESSION` | Session ID — once set, subsequent commands auto-inherit session |
+| `RADIUS_FORMAT` | Output mode: `compact` suppresses tag footer; `json` for machine-readable |
+| `RADIUS_CDN_URL` | Override update server URL (advanced) |
+| `RADIUS_DEBUG` | Enable debug logging (`1` or `module1,module2`) |
+| `RADIUS_NO_COLOR` | Disable ANSI color output |
 
 ## Guidelines
 
@@ -54,6 +65,8 @@ RADIUS_DEBUG=1                      # Enable debug logging
 2. `upgrade` is non-destructive - old versions are preserved in `~/.radius/bin/<hash>/`
 3. Updates download in background and don't interrupt current operations
 4. Signature verification ensures binary integrity
+5. Set `RADIUS_SESSION` to share state across multiple radius commands without `--tag`
+6. Use `RADIUS_FORMAT=compact` for LLM call contexts; `json` for machine parsing
 
 ## Examples
 

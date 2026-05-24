@@ -90,6 +90,42 @@ function saveTagIndex(projectRoot: string, hash: string, index: TagIndex): void 
 }
 
 /**
+ * セッションID → チェーンID のマッピングを永続化するインデックス
+ */
+interface SessionIndex {
+  [sessionId: string]: string;
+}
+
+function getSessionIndexPath(_projectRoot: string, hash: string): string {
+  if (!hash) {
+    throw new Error("[SessionManager] getSessionIndexPath called with empty hash");
+  }
+  return join(getRadiusHome(), hash, "session-index.json");
+}
+
+function loadSessionIndex(projectRoot: string, hash: string): SessionIndex {
+  const indexPath = getSessionIndexPath(projectRoot, hash);
+  if (!existsSync(indexPath)) {
+    return {};
+  }
+  try {
+    const content = readFileSync(indexPath, "utf-8");
+    return JSON.parse(content);
+  } catch {
+    return {};
+  }
+}
+
+function saveSessionIndex(projectRoot: string, hash: string, index: SessionIndex): void {
+  const indexPath = getSessionIndexPath(projectRoot, hash);
+  const dir = dirname(indexPath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  writeFileSync(indexPath, JSON.stringify(index, null, 2), "utf-8");
+}
+
+/**
  * セッションマネージャ。
  * プロジェクト単位、チェーン単位でタグとシーケンスを管理する。
  */
@@ -149,6 +185,34 @@ export class SessionManager {
   }
 
   /**
+   * セッションIDからチェーンIDを解決する（新方式）。
+   * sessionId がない場合は新しいチェーンIDを生成する。
+   * 既知の sessionId は常に同じ chainId を返す（永続マッピング）。
+   */
+  static async resolveSessionChainId(projectRoot: string, sessionId: string | undefined): Promise<string> {
+    if (!sessionId) {
+      const newChainId = generateChainId();
+      debug("session", "no sessionId, new chain created", { chainId: newChainId });
+      return newChainId;
+    }
+
+    const hash = await projectHash(projectRoot);
+    const index = loadSessionIndex(projectRoot, hash);
+
+    if (sessionId in index) {
+      debug("session", "chain resolved from sessionId", { sessionId, chainId: index[sessionId] });
+      return index[sessionId];
+    }
+
+    // 新規 sessionId → 新規 chainId を生成して永続化
+    const newChainId = generateChainId();
+    index[sessionId] = newChainId;
+    saveSessionIndex(projectRoot, hash, index);
+    debug("session", "new session registered", { sessionId, chainId: newChainId });
+    return newChainId;
+  }
+
+  /**
    * タグをチェーンIDにマッピングする。
    */
   async registerTag(tag: string): Promise<void> {
@@ -163,6 +227,20 @@ export class SessionManager {
    */
   getChainId(): string {
     return this.chainId;
+  }
+
+  /**
+   * 初期化を保証する（公開API）。sessionId モードで使用。
+   */
+  async ensureInit(): Promise<void> {
+    await this.init();
+  }
+
+  /**
+   * 現在のシーケンス番号を取得する。sessionId モードで使用。
+   */
+  getCurrentSeq(): number {
+    return this.state.currentSeq;
   }
 
   /** 初期化（非同期）。最初の使用前に呼び出す。 */
@@ -353,6 +431,18 @@ export class SessionManager {
 
     this.save();
     return newTag;
+  }
+
+  /**
+   * sessionId モード用。シーケンスを進めるがタグは生成しない。
+   */
+  async advanceSeq(changesetId: string | null): Promise<void> {
+    await this.init();
+    this.state.currentSeq++;
+    if (changesetId) {
+      this.state.seqToChangeset[this.state.currentSeq] = changesetId;
+    }
+    this.save();
   }
 
   /**
