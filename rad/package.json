@@ -1,9 +1,0 @@
-{
-  "name": "@radius/rad",
-  "version": "0.0.1",
-  "private": true,
-  "main": "src/index.ts",
-  "dependencies": {
-    "tweetnacl": "^1.0.3"
-  }
-}
