@@ -46,6 +46,9 @@ PHASE*_STATUS.md
 # Runtime data
 .radius/
 
+# Release signing private key (never commit)
+scripts/release/priv.json
+
 # Rust build artifacts
 target/
 

@@ -1,0 +1,73 @@
+name: Sign Release Assets
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/sign-release-assets.yml"
+      - "scripts/prepare-release-assets.ts"
+      - "scripts/release/pub.json"
+
+permissions:
+  contents: write
+
+jobs:
+  sign-and-attach:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install GitHub CLI
+        run: |
+          type -p gh >/dev/null || (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list && \
+            sudo apt-get update && sudo apt-get install -y gh)
+
+      - name: Resolve latest release tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=$(gh release view --repo "${{ github.repository }}" --json tagName -q .tagName)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Latest release tag: $TAG"
+
+      - name: Download release archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p artifacts
+          TAG="${{ steps.tag.outputs.tag }}"
+          for archive in radius-linux-x64.tar.gz radius-linux-arm64.tar.gz \
+            radius-darwin-arm64.tar.gz radius-darwin-x64.tar.gz radius-win-x64.zip; do
+            gh release download "$TAG" --repo "${{ github.repository }}" \
+              --pattern "$archive" --dir artifacts
+          done
+          ls -la artifacts/
+
+      - name: Prepare signed auto-update assets
+        env:
+          RADIUS_SIGNING_KEY: ${{ secrets.RADIUS_SIGNING_KEY }}
+        run: |
+          bun install --frozen-lockfile
+          bun run scripts/prepare-release-assets.ts \
+            --artifacts-dir artifacts \
+            --output-dir release-assets \
+            --version "${{ steps.tag.outputs.tag }}"
+
+      - name: Upload signed assets to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          gh release upload "$TAG" --repo "${{ github.repository }}" \
+            release-assets/latest.json \
+            release-assets/pub.json \
+            release-assets/*.gz \
+            release-assets/*.gz.sig \
+            --clobber
