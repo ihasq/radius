@@ -5,41 +5,56 @@
  * Tags should be displayed with arrows showing the chain history.
  */
 
-import { test, expect, describe, beforeAll, afterAll } from "bun:test";
+import { test, expect, describe, beforeAll, afterAll, beforeEach } from "bun:test";
 import { radius } from "./helpers/radius";
 import { setupFixture, cleanupFixture } from "./helpers/fixtures";
 import { setupTestRadiusHome, cleanupTestRadiusHome } from "./helpers/test-isolation";
 import { join } from "node:path";
+import { existsSync, unlinkSync } from "node:fs";
+import { getActiveSessionPath } from "../src/shared/paths";
 
 let tmpDir: string;
 
+function clearActiveSession(): void {
+  const sessionPath = getActiveSessionPath();
+  if (existsSync(sessionPath)) {
+    unlinkSync(sessionPath);
+  }
+}
+
 beforeAll(async () => {
   setupTestRadiusHome("tag-chain-visual");
+  clearActiveSession();
   tmpDir = await setupFixture("ts-project");
+});
+
+beforeEach(() => {
+  clearActiveSession();
 });
 
 afterAll(async () => {
   await cleanupFixture(tmpDir);
+  clearActiveSession();
   cleanupTestRadiusHome();
 });
 
 describe("初回コマンド", () => {
 
-  test("1. 初回出力に 'rotate' または 'latest tag' の説明が含まれること", async () => {
+  test("1. 初回出力にタグチェーンの説明が含まれること", async () => {
     const filePath = join(tmpDir, "src/main.ts");
     const result = await radius(["view", filePath], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(0);
-    // 初回コマンドは説明文を含む
-    expect(result.stdout).toMatch(/rotate|latest tag/i);
+    // 初回コマンドは Welcome と --tag / RADIUS_SESSION の案内を含む
+    expect(result.stdout).toMatch(/Welcome to Radius|Pass the latest.*--tag|set RADIUS_SESSION/i);
   }, 15000);
 
-  test("2. 初回出力に '--reason is a message TO THEM' が含まれること", async () => {
+  test("2. 初回出力に --reason の案内が含まれること", async () => {
     const filePath = join(tmpDir, "src/utils.ts");
     const result = await radius(["outline", filePath], { cwd: tmpDir });
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toMatch(/--reason.*message.*TO THEM/i);
+    expect(result.stdout).toMatch(/overriding another editor|--reason/i);
     // 初回は chain: 行も必要
     expect(result.stdout).toMatch(/chain:\s+[a-f0-9]{4}-[a-zA-Z0-9_-]+/);
   }, 15000);
@@ -105,8 +120,8 @@ describe("2回目のコマンド", () => {
     const r2 = await radius(["outline", filePath, "--tag", tag1!], { cwd: tmpDir });
 
     expect(r2.exitCode).toBe(0);
-    // 2回目では説明文が省略される
-    expect(r2.stdout).not.toMatch(/rotate|latest tag/i);
+    // 2回目では初回 Welcome 説明が省略される
+    expect(r2.stdout).not.toMatch(/Welcome to Radius/i);
     // しかし chain: 行は表示される
     expect(r2.stdout).toMatch(/chain:.*→/);
   }, 20000);
