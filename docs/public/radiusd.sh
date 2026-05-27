@@ -39,6 +39,12 @@ resolve_release_base() {
     return 0
   fi
 
+  # Backward-compatible alias used by tests and legacy installs
+  if [ -n "${RADIUS_CDN_URL:-}" ]; then
+    printf '%s' "$RADIUS_CDN_URL"
+    return 0
+  fi
+
   TAG=$(curl -fsSLI "https://github.com/$GITHUB_REPO/releases/latest" 2>/dev/null \
     | grep -i '^location:' \
     | sed 's/.*\/tag\///' \
