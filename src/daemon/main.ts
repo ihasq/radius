@@ -196,6 +196,19 @@ async function runCliMode(): Promise<void> {
     process.exit(1);
   }
 
+  // 出力フォーマット判定（JSON モードはエラー/警告含めて全出力を構造化）
+  const outputFormat = process.env.RADIUS_FORMAT || "default";
+  if (outputFormat === "json") {
+    const jsonOutput: Record<string, unknown> = {
+      ok: response.ok,
+    };
+    if (response.data !== undefined) jsonOutput.data = response.data;
+    if (response.warnings) jsonOutput.warnings = response.warnings;
+    if (response.error) jsonOutput.error = response.error;
+    console.log(JSON.stringify(jsonOutput));
+    process.exit(response.ok ? 0 : 1);
+  }
+
   // エラーハンドリング
   if (!response.ok) {
     console.error(`error: ${response.error}`);
@@ -215,21 +228,6 @@ async function runCliMode(): Promise<void> {
     for (const warningText of response.warnings) {
       console.log(colorWarning(warningText));
     }
-  }
-
-  // 出力フォーマット判定
-  const outputFormat = process.env.RADIUS_FORMAT || "default";
-
-  // JSON モード — 全出力を構造化 JSON で
-  if (outputFormat === "json") {
-    const jsonOutput: Record<string, unknown> = {
-      ok: response.ok,
-    };
-    if (response.data !== undefined) jsonOutput.data = response.data;
-    if (response.warnings) jsonOutput.warnings = response.warnings;
-    if (response.error) jsonOutput.error = response.error;
-    console.log(JSON.stringify(jsonOutput));
-    process.exit(response.ok ? 0 : 1);
   }
 
   // データ出力（compact / default 共通）
@@ -723,10 +721,13 @@ for (const handlerDef of handlers) {
 
           let newTag: string | undefined;
           if (isSessionMode) {
-            // sessionId モード: タグ生成なし、シーケンスのみ進める
-            const latestChangesetId = isWriteCommand ? await historyTracker.getLatestChangesetId() : null;
-            await sessionManager.advanceSeq(latestChangesetId);
-            newTag = undefined;
+            // sessionId モード: rewind 検知なし、タグは通常通り生成して backward compat を保つ
+            if (currentSeq === 0) {
+              newTag = await sessionManager.currentTag();
+            } else {
+              const latestChangesetId = isWriteCommand ? await historyTracker.getLatestChangesetId() : null;
+              newTag = await sessionManager.advance(latestChangesetId);
+            }
           } else if (currentSeq === 0 && request.tag === undefined) {
             // 初回コマンド（タグなし）: currentTag() で初期タグを生成
             newTag = await sessionManager.currentTag();
@@ -821,15 +822,15 @@ for (const handlerDef of handlers) {
           // 非推奨警告とvalidateAndRewindからの警告をマージ
           const allWarnings = [...deprecationWarnings, ...warnings];
 
-          // タグ履歴を取得（チェーン可視化用、sessionId モードでは不要）
-          const tagHistory = isSessionMode ? [] : await sessionManager.getTagHistory();
+          // タグ履歴を取得（チェーン可視化用）
+          const tagHistory = await sessionManager.getTagHistory();
 
           return {
             ...response,
             data: finalData,
-            tag: isSessionMode ? undefined : newTag,
-            isFirstTag: isSessionMode ? undefined : isFirstTag,
-            tagHistory: isSessionMode ? undefined : tagHistory,
+            tag: newTag,
+            isFirstTag,
+            tagHistory,
             warnings: allWarnings.length > 0 ? allWarnings : undefined,
           };
         }

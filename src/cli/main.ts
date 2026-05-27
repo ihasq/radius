@@ -185,6 +185,19 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // A: 出力フォーマット判定（JSON モードはエラー/警告含めて全出力を構造化）
+  const outputFormat = process.env.RADIUS_FORMAT || "default";
+  if (outputFormat === "json") {
+    const jsonOutput: Record<string, unknown> = {
+      ok: response.ok,
+    };
+    if (response.data !== undefined) jsonOutput.data = response.data;
+    if (response.warnings) jsonOutput.warnings = response.warnings;
+    if (response.error) jsonOutput.error = response.error;
+    console.log(JSON.stringify(jsonOutput));
+    process.exit(response.ok ? 0 : 1);
+  }
+
   // A: エラーハンドリング
   if (!response.ok) {
     let errorMsg: string;
@@ -216,21 +229,6 @@ async function main(): Promise<void> {
     }
   }
 
-  // A: 出力フォーマット判定
-  const outputFormat = process.env.RADIUS_FORMAT || "default";
-
-  // A: JSON モード — 全出力を構造化 JSON で
-  if (outputFormat === "json") {
-    const jsonOutput: Record<string, unknown> = {
-      ok: response.ok,
-    };
-    if (response.data !== undefined) jsonOutput.data = response.data;
-    if (response.warnings) jsonOutput.warnings = response.warnings;
-    if (response.error) jsonOutput.error = response.error;
-    console.log(JSON.stringify(jsonOutput));
-    process.exit(response.ok ? 0 : 1);
-  }
-
   // A: データ出力（compact / default 共通）
   if (response.data !== undefined) {
     if (typeof response.data === "string") {
@@ -243,7 +241,7 @@ async function main(): Promise<void> {
   }
 
   // A: タグ出力（compact モードでは抑制）
-  if (response.tag && outputFormat !== "compact") {
+  if (response.tag && process.env.RADIUS_FORMAT !== "compact") {
     console.log(muted("\n---"));
     console.log(`radius-tag: ${response.tag}`);
     console.log("");
