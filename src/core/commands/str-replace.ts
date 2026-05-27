@@ -58,11 +58,16 @@ export async function handleStrReplace(
 
   // 出現数チェック
   if (occurrences.length === 0) {
-    return errorResponse("no match found.");
+    const hint = buildNoMatchHint(content, oldText);
+    return errorResponse(`no match found.${hint}`);
   }
 
   if (occurrences.length > 1) {
-    return errorResponse(`multiple matches found (${occurrences.length}). Use a more specific string.`);
+    const lineNums = occurrences.map((offset) => getLineFromOffset(content, offset) + 1);
+    const uniqueLines = [...new Set(lineNums)].sort((a, b) => a - b);
+    return errorResponse(
+      `multiple matches found (${occurrences.length}) at lines ${uniqueLines.join(", ")}. Use a more specific --old string.`
+    );
   }
 
   // 置換実行（BufferManager 経由）
@@ -172,4 +177,21 @@ function getLineFromOffset(content: string, offset: number): number {
     currentOffset += lineLength;
   }
   return lines.length - 1;
+}
+
+/**
+ * 完全一致が見つからない場合のヒントを生成する。
+ */
+function buildNoMatchHint(content: string, oldText: string): string {
+  const lines = content.split("\n");
+  const oldLines = oldText.split("\n");
+  const probe = oldLines[0]?.trim();
+  if (!probe || probe.length < 4) return "";
+
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].includes(probe)) {
+      return `\nhint: similar text on line ${i + 1} — check exact whitespace, indentation, and line endings`;
+    }
+  }
+  return "";
 }

@@ -16,8 +16,8 @@ export const SUGGEST_RULES: SuggestRule[] = [
   {
     match: (_cmd, out) => (out.includes("❌") || /\d+ error/.test(out)) && !out.includes("0 errors"),
     suggest: (file, tag) => [
-      `radius fix ${file} --tag ${tag}`,
-      `radius str-replace ${file} --old "..." --new "..." --tag ${tag}`,
+      `radius fix ${file}`,
+      `radius str-replace ${file} --old "..." --new "..."`,
     ],
   },
 
@@ -28,9 +28,9 @@ export const SUGGEST_RULES: SuggestRule[] = [
         cmd.includes(c)
       ) &&
       (out.includes("0 errors") || out.includes("(clean)")),
-    suggest: (file, tag) => [
-      `radius problems ${file} --tag ${tag}`,
-      `radius view ${file} --tag ${tag}`,
+    suggest: (file) => [
+      `radius problems ${file}`,
+      `radius view ${file}`,
     ],
   },
 
@@ -44,7 +44,7 @@ export const SUGGEST_RULES: SuggestRule[] = [
       const lineMatch = out.match(/\[line (\d+)\]/);
       const firstLine = lineMatch ? lineMatch[1] : "1";
       suggestions.push(
-        `radius hover ${file} --line ${firstLine} --col 1 --tag ${tag}`
+        `radius hover ${file} --line ${firstLine} --col 1`
       );
 
       // Extract first export symbol name
@@ -53,7 +53,7 @@ export const SUGGEST_RULES: SuggestRule[] = [
       );
       if (varMatch) {
         const firstName = varMatch[1];
-        suggestions.push(`radius read-var ${file} --var ${firstName} --tag ${tag}`);
+        suggestions.push(`radius read-var ${file} --var ${firstName}`);
       }
 
       return suggestions;
@@ -63,18 +63,18 @@ export const SUGGEST_RULES: SuggestRule[] = [
   // Rule 4: view → outline, problems
   {
     match: (cmd) => cmd === "view",
-    suggest: (file, tag) => [
-      `radius outline ${file} --tag ${tag}`,
-      `radius problems ${file} --tag ${tag}`,
+    suggest: (file) => [
+      `radius outline ${file}`,
+      `radius problems ${file}`,
     ],
   },
 
   // Rule 5: create-all → view, problems
   {
     match: (cmd) => cmd === "create-all",
-    suggest: (file, tag) => [
-      `radius view ${file} --tag ${tag}`,
-      `radius problems ${file} --tag ${tag}`,
+    suggest: (file) => [
+      `radius view ${file}`,
+      `radius problems ${file}`,
     ],
   },
 
@@ -83,7 +83,7 @@ export const SUGGEST_RULES: SuggestRule[] = [
     match: (cmd, out) =>
       cmd === "problems" &&
       (out.includes("0 errors") || out.includes("(clean)")),
-    suggest: (file, tag) => [`radius outline ${file} --tag ${tag}`],
+    suggest: (file) => [`radius outline ${file}`],
   },
 
   // Rule 7: problems with N errors → fix
@@ -92,7 +92,7 @@ export const SUGGEST_RULES: SuggestRule[] = [
       cmd === "problems" &&
       !out.includes("0 errors") &&
       (out.includes("❌") || /\d+ error/.test(out)),
-    suggest: (file, tag) => [`radius fix ${file} --tag ${tag}`],
+    suggest: (file) => [`radius fix ${file}`],
   },
 
   // Rule 8: hover → read-var (if symbol name detected)
@@ -102,7 +102,7 @@ export const SUGGEST_RULES: SuggestRule[] = [
       // Try to extract symbol name from hover output
       const symbolMatch = out.match(/symbol: (\w+)/);
       if (symbolMatch) {
-        return [`radius read-var ${file} --var ${symbolMatch[1]} --tag ${tag}`];
+        return [`radius read-var ${file} --var ${symbolMatch[1]}`];
       }
       return [];
     },

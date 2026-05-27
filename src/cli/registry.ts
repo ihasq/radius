@@ -6,6 +6,7 @@
 
 import { resolve } from "node:path";
 import type { IpcRequest } from "../shared/types";
+import { isFlagLikePath } from "./args";
 
 /** コマンド定義。 */
 export interface CommandDef {
@@ -449,8 +450,8 @@ examples:
     name: "create",
     description: "新規ファイルの作成",
     usage: "radius create <file> [--content <text> | --stdin] [--force]",
-    help: `usage: radius create <file> --content <text> [--force] [--tag T]
-       radius create <file> --stdin [--force] [--tag T]
+    help: `usage: radius create <file> --content <text> [--force]
+       radius create <file> --stdin [--force]
 
 Create a new file with the specified content.
 
@@ -458,7 +459,9 @@ options:
   --content <text>  File content (required unless --stdin)
   --stdin           Read content from stdin (for multiline content)
   --force           Overwrite existing file
-  --tag <tag>       Session tag from previous command output
+
+notes:
+  Existing files require --force. For many files at once, use create-all.
 
 stdin mode:
   Use --stdin to provide multiline file content via pipe or heredoc.
@@ -471,17 +474,20 @@ examples:
     return \`Hello, \${name}!\`;
   }' | radius create src/greet.ts --stdin
 
-  # Using heredoc:
-  radius create src/config.ts --stdin << 'EOF'
-  export const config = {
-    apiUrl: "https://api.example.com",
-    timeout: 5000,
-  };
+  # Bulk create (preferred for 5+ files):
+  cat <<'EOF' | radius create-all --stdin
+  --- src/a.ts
+  export const a = 1;
+  --- src/b.ts
+  export const b = 2;
   EOF`,
     buildRequest: (args, cwd, stdin) => {
       const file = args[0];
       if (!file) {
         throw "usage: radius create <file> [--content <text> | --stdin] [--force]";
+      }
+      if (isFlagLikePath(file)) {
+        throw `error: "${file}" is not a file path. Run: radius create --help`;
       }
       const absFile = resolve(cwd, file);
       const parsed = parseArgs(args.slice(1));
@@ -1552,5 +1558,14 @@ export function generateUsage(): string {
     const padding = " ".repeat(Math.max(0, 50 - cmd.name.length - cmd.description.length));
     lines.push(`  ${cmd.name}${padding}${cmd.description}`);
   }
+  lines.push("");
+  lines.push("tips:");
+  lines.push("  radius <command> --help     command-specific help");
+  lines.push("  radius create-all --stdin   create many files at once (--- delimited)");
   return lines.join("\n");
+}
+
+/** Prefix command help with a title line. */
+export function formatCommandHelp(cmd: CommandDef): string {
+  return `${cmd.name} — ${cmd.description}\n\n${cmd.help}`;
 }

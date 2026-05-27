@@ -52,6 +52,7 @@ export async function radius(
     ...process.env,
     NO_COLOR: "1",
     RADIUS_HOME: process.env.RADIUS_HOME || "",
+    RADIUS_AUTO_SESSION: "0",
     ...options?.env,
   };
   if (options?.env?.FORCE_COLOR) {
@@ -105,7 +106,8 @@ export async function radius(
  * 出力からradius-tagを抽出する。
  */
 export function extractTag(stdout: string): string {
-  const match = stdout.match(/radius-tag:\s*(\S+)/);
+  const cleaned = stdout.replace(/\u001b\[[0-9;]*m/g, "");
+  const match = cleaned.match(/radius-tag:\s*(\S+)/);
   if (!match) throw new Error("No radius-tag found in output");
   return match[1];
 }

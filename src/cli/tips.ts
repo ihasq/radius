@@ -9,11 +9,21 @@
  * tipが不要な場合は null を返す。
  */
 export function getTip(command: string, errorMessage: string): string | null {
-  // コマンド固有のtips
   switch (command) {
     case "create":
+      if (/already exists/i.test(errorMessage)) {
+        return "tip: file exists — use --force to overwrite, or radius view <file> to inspect first";
+      }
       if (/--content|--stdin/i.test(errorMessage)) {
         return 'tip: radius create <file> --content "code" or pipe with --stdin';
+      }
+      if (/not a file path/i.test(errorMessage)) {
+        return "tip: run radius create --help (not radius create --help as a filename)";
+      }
+      break;
+    case "create-all":
+      if (/already exists/i.test(errorMessage)) {
+        return "tip: use create-all --force --stdin to overwrite existing files in bulk";
       }
       break;
     case "view":
@@ -22,8 +32,11 @@ export function getTip(command: string, errorMessage: string): string | null {
       }
       break;
     case "str-replace":
-      if (/no match|0 match/i.test(errorMessage)) {
-        return 'tip: use radius grep <file> --pattern "text" to search first';
+      if (/no match/i.test(errorMessage)) {
+        return "tip: run radius view <file> to copy exact text; check whitespace and newlines";
+      }
+      if (/multiple matches/i.test(errorMessage)) {
+        return "tip: add more surrounding lines to --old, or split into smaller replacements";
       }
       break;
     case "fix":
@@ -37,39 +50,33 @@ export function getTip(command: string, errorMessage: string): string | null {
       }
       break;
     case "undo":
-      if (/nothing to undo|no history/i.test(errorMessage)) {
-        return "tip: undo history is per-session. check your --tag is correct";
+      if (/nothing to undo|no history|--tag is required/i.test(errorMessage)) {
+        return "tip: undo is per-session. RADIUS_SESSION is set automatically; no --tag needed";
       }
       break;
   }
 
-  // 汎用tips（他のtipsが該当しなかった場合）
   return `tip: run radius ${command} --help for usage details`;
 }
 
 /**
  * 成功時に表示すべきtipを返す。
- * コマンド実行結果が成功だが、ユーザーに補足情報を伝えたい場合に使用。
  */
 export function getSuccessTip(command: string, output: string): string | null {
   switch (command) {
     case "create":
-      // --content なしで作成された場合（空ファイルまたは空行のみ）
       if (output.includes("created:")) {
-        // 行番号の後が空または空白のみの場合
         if (output.match(/^\s*\d+:\s*$/m)) {
           return 'tip: created empty file. add content with radius insert or --content flag';
         }
       }
       break;
     case "view":
-      // 空ディレクトリの場合（出力が空または空白のみ）
       if (output.trim() === "") {
-        return "tip: empty directory. use radius create <file> to add files";
+        return "tip: empty directory. use radius create <file> or create-all --stdin for many files";
       }
       break;
     case "grep":
-      // 0マッチの場合
       if (output.includes("matches: 0") || output.includes("no matches found")) {
         return "tip: try --ignore-case or --regex for broader matching";
       }

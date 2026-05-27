@@ -10,13 +10,15 @@ import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { sendRequest } from "../ipc/client";
-import { getSocketPath, getPidPath, getRadiusHome, resolveSessionId } from "../shared/paths";
-import { findCommand, generateUsage, buildRequestWithTag } from "./registry";
+import { getSocketPath, getPidPath, getRadiusHome } from "../shared/paths";
+import { findCommand, generateUsage, buildRequestWithTag, formatCommandHelp } from "./registry";
 import type { IpcRequest } from "../shared/types";
 import { readStdin, isStdinAvailable } from "../shared/stdin";
 import pkg from "../../package.json";
 import { muted, stripAnsi, shouldStripColors } from "../shared/colors";
 import { getTip } from "./tips";
+import { wantsHelp, hasTagOption, resolveCliSessionId } from "./args";
+import { printTagFooter } from "./tag-footer";
 
 /**
  * PIDファイルに記録されたプロセスが生存しているか確認する。
@@ -142,9 +144,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // A: コマンド固有の --help
-  if (args.slice(1).includes("--help") || args.slice(1).includes("-h")) {
-    console.log(cmdDef.help);
+  // A: コマンド固有の --help（デーモン起動前）
+  if (wantsHelp(args.slice(1))) {
+    console.log(formatCommandHelp(cmdDef));
     process.exit(0);
   }
 
@@ -166,8 +168,8 @@ async function main(): Promise<void> {
     stdinContent = await readStdin();
   }
 
-  // A: セッションID解決（RADIUS_SESSION env var → file → 新規生成）
-  const sessionId = resolveSessionId();
+  // A: セッションID解決（--tag 指定時はタグチェーン優先、それ以外は自動セッション）
+  const sessionId = resolveCliSessionId(cmdDef.supportsTag, args.slice(1));
 
   // A: リクエスト構築
   let request: IpcRequest;
@@ -242,28 +244,13 @@ async function main(): Promise<void> {
 
   // A: タグ出力（compact モードでは抑制）
   if (response.tag && process.env.RADIUS_FORMAT !== "compact") {
-    console.log(muted("\n---"));
-    console.log(`radius-tag: ${response.tag}`);
-    console.log("");
-    console.log(muted("> **`--tag " + response.tag + "` is mandatory for every subsequent command.**"));
-    console.log(muted("> This tag links your edits into a single chain. Other editors monitoring this file"));
-    console.log(muted("> will see your chain as one coherent operation."));
-    console.log(muted(">"));
-    console.log(muted("> **If you need to edit a file that another editor is also modifying:**"));
-    console.log(muted("> Pass `--reason \"why you are overriding\"` — this notifies the other editor"));
-    console.log(muted("> that you have intentionally overwritten their work, and why."));
-    console.log(muted("> `--reason` is a message TO THEM, not to Radius."));
-
-    // 初回タグの場合は追加のノートを表示
-    if (response.isFirstTag) {
-      console.log("");
-      console.log(muted("> **Welcome to Radius.** Every edit command returns a `radius-tag`. Pass it to your"));
-      console.log(muted("> next command with `--tag` to maintain edit continuity. Radius tracks your edits as"));
-      console.log(muted("> a chain — if another editor modifies the same file, you will be notified."));
-      console.log(muted("> Type errors and warnings appear automatically after each edit in the `diagnostics` section."));
-      console.log(muted("> The `## context` section shows exports, imports, and conventions — use it to understand"));
-      console.log(muted("> the file before editing."));
-    }
+    printTagFooter({
+      tag: response.tag,
+      isFirstTag: response.isFirstTag,
+      tagHistory: response.tagHistory,
+      sessionMode: Boolean(sessionId && !hasTagOption(args.slice(1))),
+      sessionId,
+    });
   }
 }
 

@@ -129,17 +129,12 @@ describe("Group B: Suggestion format accuracy", () => {
     const tagMatch = output.match(/radius-tag: (\S+)/);
     expect(tagMatch).toBeTruthy();
 
-    const tag = tagMatch![1];
-
-    // Check suggested commands contain the tag
+    // Suggested commands should be runnable without --tag (auto session)
     const suggestedLines = output
       .split("\n")
-      .filter((line) => line.includes("radius"));
-    const hasSuggestionsWithTag = suggestedLines.some((line) =>
-      line.includes(`--tag ${tag}`)
-    );
-
-    expect(hasSuggestionsWithTag).toBe(true);
+      .filter((line) => line.includes(">   radius"));
+    expect(suggestedLines.length).toBeGreaterThan(0);
+    expect(suggestedLines.every((line) => !line.includes("--tag"))).toBe(true);
   });
 
   test("T07: suggested commands are max 3", () => {

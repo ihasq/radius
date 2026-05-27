@@ -11,7 +11,7 @@ import { spawn } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { IpcServer } from "../ipc/server";
 import { sendRequest } from "../ipc/client";
-import { getPidPath, getSocketPath, getRadiusHome, resolveSessionId } from "../shared/paths";
+import { getPidPath, getSocketPath, getRadiusHome } from "../shared/paths";
 import { findProjectRoot } from "../shared/project";
 import { LspManager } from "../lsp/manager";
 import { HistoryTracker } from "../core/history/tracker";
@@ -24,10 +24,12 @@ import { ConflictManager } from "../core/agent/conflict";
 import { DiagnosticRegistry } from "../lsp/diagnostic-registry";
 import { TsRadManager } from "@radius/rdsx-ts/manager";
 import { handlers, type DaemonContext } from "./registry";
-import { findCommand, generateUsage, buildRequestWithTag } from "../cli/registry";
+import { findCommand, generateUsage, buildRequestWithTag, formatCommandHelp } from "../cli/registry";
 import { readStdin, isStdinAvailable } from "../shared/stdin";
 import { muted, stripAnsi, shouldStripColors } from "../shared/colors";
 import { getTip } from "../cli/tips";
+import { wantsHelp, hasTagOption, resolveCliSessionId } from "../cli/args";
+import { printTagFooter } from "../cli/tag-footer";
 import type { IpcResponse, IpcRequest } from "../shared/types";
 import pkg from "../../package.json";
 import { debug, debugTime } from "../shared/debug";
@@ -160,6 +162,12 @@ async function runCliMode(): Promise<void> {
     process.exit(1);
   }
 
+  // コマンド固有の --help（デーモン起動前）
+  if (wantsHelp(args.slice(1))) {
+    console.log(formatCommandHelp(cmdDef));
+    process.exit(0);
+  }
+
   // デーモン起動確認
   const running = await ensureDaemon();
   if (!running) {
@@ -180,9 +188,9 @@ async function runCliMode(): Promise<void> {
 
   // リクエスト構築
   let request: IpcRequest;
+  let sessionId: string | undefined;
   try {
-    // セッションIDを解決（RADIUS_SESSION env var → file → 新規生成）
-    const sessionId = resolveSessionId();
+    sessionId = resolveCliSessionId(cmdDef.supportsTag, args.slice(1));
     request = buildRequestWithTag(cmdDef, args.slice(1), process.cwd(), stdinContent, sessionId);
   } catch (usageMessage) {
     console.error(usageMessage);
@@ -252,62 +260,16 @@ async function runCliMode(): Promise<void> {
 
   // タグ出力（compact / json モードでは抑制）
   if (response.tag && outputFormat === "default") {
-    const tagHistory = response.tagHistory || [];
-    const historyLength = tagHistory.length;
-
-    console.log(muted("\n---"));
-    console.log(`radius-tag: ${response.tag}`);
-    console.log("");
-
-    // チェーン可視化
-    if (historyLength <= 1) {
-      // 初回: Welcome メッセージ + chain: tag1 (矢印なし)
-      if (response.isFirstTag) {
-        console.log(muted("> **Welcome to Radius.** Every edit command returns a radius-tag."));
-        console.log(muted("> Pass it to your next command with --tag to maintain edit continuity."));
-        console.log(muted("> Radius tracks your edits as a chain — if another editor modifies"));
-        console.log(muted("> the same file, you will be notified."));
-        console.log("");
-      }
-
-      console.log(muted(`chain: ${response.tag}`));
-      console.log("");
-      console.log(muted("> Tags rotate on every command. Always pass the latest tag."));
-      console.log(muted("> `--reason` is a note to OTHER editors when you override their work."));
-      console.log("");
-      console.log(muted("> **`--tag " + response.tag + "` is mandatory for every subsequent command.**"));
-      console.log(muted("> This tag links your edits into a single chain. Other editors monitoring this file"));
-      console.log(muted("> will see your chain as one coherent operation."));
-      console.log(muted(">"));
-      console.log(muted("> **If you need to edit a file that another editor is also modifying:**"));
-      console.log(muted("> Pass `--reason \"why you are overriding\"` — this notifies the other editor"));
-      console.log(muted("> that you have intentionally overwritten their work, and why."));
-      console.log(muted("> `--reason` is a message TO THEM, not to Radius."));
-    } else if (historyLength <= 4) {
-      // 2-4回: chain: tag1 → tag2 → tag3 + マーカー
-      const chain = tagHistory.join(" → ");
-      console.log(muted(`chain: ${chain}`));
-
-      // マーカー位置計算（最後のタグの下）
-      const lastTagStartPos = chain.lastIndexOf(response.tag);
-      const spaces = " ".repeat("chain: ".length + lastTagStartPos);
-      const carets = "^".repeat(response.tag.length);
-      console.log(muted(`${spaces}${carets} use this`));
-    } else {
-      // 5回以上: ...→ tagN-2 → tagN-1 → tagN + マーカー
-      const recentTags = tagHistory.slice(-3);
-      const chain = "... → " + recentTags.join(" → ");
-      console.log(muted(`chain: ${chain}`));
-
-      // マーカー位置計算
-      const lastTagStartPos = chain.lastIndexOf(response.tag);
-      const spaces = " ".repeat("chain: ".length + lastTagStartPos);
-      const carets = "^".repeat(response.tag.length);
-      console.log(muted(`${spaces}${carets} use this`));
-    }
+    printTagFooter({
+      tag: response.tag,
+      isFirstTag: response.isFirstTag,
+      tagHistory: response.tagHistory,
+      sessionMode: Boolean(sessionId && !hasTagOption(args.slice(1))),
+      sessionId,
+    });
 
     // Command suggestions
-    if (response.tag && response.data && typeof response.data === "string") {
+    if (response.data && typeof response.data === "string") {
       const { getSuggestions } = await import("../core/suggest/engine");
 
       // Extract primary file from args (most commands have file as first arg)
