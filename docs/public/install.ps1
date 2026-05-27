@@ -1,13 +1,13 @@
 # Radius installer / upgrader for Windows
 # Usage: irm https://radius-ai.pages.dev/install.ps1 | iex
 #
-# Upgrades radiusd from CDN latest.json (SHA256 verified), with GitHub release fallback.
+# Install scripts are served from Cloudflare Pages.
+# Signed binaries are downloaded from GitHub Releases.
 
 $ErrorActionPreference = "Stop"
 
-$Repo = "ihasq/radius"
-$CdnBase = if ($env:RADIUS_CDN_BASE) { $env:RADIUS_CDN_BASE } else { "https://radius-ai.pages.dev" }
-$CdnUrl = if ($env:RADIUS_CDN_URL) { $env:RADIUS_CDN_URL } else { "$CdnBase/release" }
+$Repo = if ($env:RADIUS_GITHUB_REPO) { $env:RADIUS_GITHUB_REPO } else { "ihasq/radius" }
+$PagesBase = if ($env:RADIUS_PAGES_BASE) { $env:RADIUS_PAGES_BASE } else { "https://radius-ai.pages.dev" }
 $RadiusHome = if ($env:RADIUS_HOME) { $env:RADIUS_HOME } else { "$env:USERPROFILE\.radius" }
 $InstallDir = if ($env:RADIUS_INSTALL_DIR) { $env:RADIUS_INSTALL_DIR } else { "$RadiusHome\bin" }
 
@@ -22,14 +22,9 @@ switch ($Arch) {
 }
 
 function Stop-RadiusDaemon {
-    $candidates = @(
-        (Join-Path $InstallDir "radiusd.exe"),
-        (Join-Path $InstallDir "current\core.exe")
-    )
-    foreach ($bin in $candidates) {
-        if (Test-Path $bin) {
-            try { & $bin --exec daemon stop 2>$null } catch {}
-        }
+    $core = Join-Path $InstallDir "current\core.exe"
+    if (Test-Path $core) {
+        try { & $core --exec daemon stop 2>$null } catch {}
     }
 }
 
@@ -65,15 +60,37 @@ function Update-CurrentLink($Hash) {
     cmd /c mklink /J "$currentLink" "$target" | Out-Null
 }
 
-function Install-FromCdn {
-    Write-Info "Fetching latest release from CDN..."
-    $latest = Invoke-RestMethod -Uri "$CdnUrl/latest.json" -UseBasicParsing
+function Get-ReleaseBaseUrl {
+    if ($env:RADIUS_RELEASE_URL) {
+        return $env:RADIUS_RELEASE_URL
+    }
+    try {
+        $Response = Invoke-WebRequest -Uri "https://github.com/$Repo/releases/latest" -MaximumRedirection 0 -ErrorAction SilentlyContinue -UseBasicParsing 2>&1
+        $Location = $Response.Headers.Location
+        if (-not $Location) { $Location = $Response.Headers["Location"] }
+        $Version = ($Location -split '/')[-1]
+    } catch {
+        try {
+            $Location = $_.Exception.Response.Headers.Location.ToString()
+            $Version = ($Location -split '/')[-1]
+        } catch {
+            Write-Err "Failed to fetch latest version from GitHub."
+        }
+    }
+    if (-not $Version) { Write-Err "Failed to fetch latest version from GitHub." }
+    return "https://github.com/$Repo/releases/download/$Version"
+}
+
+function Install-FromGitHub {
+    Write-Info "Fetching latest release from GitHub..."
+    $releaseBase = Get-ReleaseBaseUrl
+    $latest = Invoke-RestMethod -Uri "$releaseBase/latest.json" -UseBasicParsing
     $hash = [string]$latest.hash
     $version = [string]$latest.version
     $asset = $latest.assets.$Platform
 
     if (-not $hash -or -not $asset) {
-        return $false
+        Write-Err "Invalid latest.json or unsupported platform $Platform"
     }
 
     $releaseDir = Join-Path $InstallDir $hash
@@ -90,11 +107,11 @@ function Install-FromCdn {
 
     if ($currentHash -eq $hash -and (Test-Path $corePath)) {
         Write-Info "Already up to date ($version)"
-        return $true
+        return
     }
 
     Write-Info "Downloading Radius $version for $Platform..."
-    $gzBytes = [byte[]](Invoke-WebRequest -Uri "$CdnUrl/$($asset.url)" -UseBasicParsing).Content
+    $gzBytes = [byte[]](Invoke-WebRequest -Uri "$releaseBase/$($asset.url)" -UseBasicParsing).Content
     $actualSha = Get-Sha256Hex $gzBytes
     if ($actualSha -ne [string]$asset.sha256) {
         Write-Err "Integrity check failed: SHA256 mismatch"
@@ -106,54 +123,13 @@ function Install-FromCdn {
 
     Update-CurrentLink $hash
     Write-Info "Updated to $version ($hash)"
-    return $true
-}
-
-function Install-FromGitHub {
-    Write-Info "CDN unavailable; falling back to GitHub release..."
-    try {
-        $Response = Invoke-WebRequest -Uri "https://github.com/$Repo/releases/latest" -MaximumRedirection 0 -ErrorAction SilentlyContinue -UseBasicParsing 2>&1
-        $Location = $Response.Headers.Location
-        if (-not $Location) { $Location = $Response.Headers["Location"] }
-        $Version = ($Location -split '/')[-1]
-    } catch {
-        try {
-            $Location = $_.Exception.Response.Headers.Location.ToString()
-            $Version = ($Location -split '/')[-1]
-        } catch {
-            Write-Err "Failed to fetch latest version from GitHub."
-        }
-    }
-    if (-not $Version) { Write-Err "Failed to fetch latest version from GitHub." }
-
-    $Archive = "radius-$Platform.zip"
-    $Url = "https://github.com/$Repo/releases/download/$Version/$Archive"
-    $TmpDir = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "radius-install-$([System.IO.Path]::GetRandomFileName())")
-    New-Item -ItemType Directory -Path $TmpDir -Force | Out-Null
-    $ZipPath = Join-Path $TmpDir $Archive
-
-    Write-Info "Downloading Radius $Version for $Platform..."
-    try {
-        Invoke-WebRequest -Uri $Url -OutFile $ZipPath -UseBasicParsing
-    } catch {
-        Remove-Item -Recurse -Force $TmpDir -ErrorAction SilentlyContinue
-        Write-Err "Download failed. No release found for $Platform at $Version."
-    }
-
-    Expand-Archive -Path $ZipPath -DestinationPath $TmpDir -Force
-    New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-    Copy-Item (Join-Path $TmpDir "radiusd-$Platform.exe") (Join-Path $InstallDir "radiusd.exe") -Force
-    Remove-Item -Recurse -Force $TmpDir
-    Write-Info "Installed $Version from GitHub (flat layout; re-run installer to upgrade)"
-    return $true
 }
 
 function Install-CliWrappers {
     $RadiusCmdPath = Join-Path $InstallDir "radius.cmd"
     $coreWrapper = Join-Path $InstallDir "radiusd.cmd"
 
-    if (Test-Path (Join-Path $InstallDir "current\core.exe")) {
-        @"
+    @"
 @echo off
 setlocal
 set "RADIUS_HOME=$RadiusHome"
@@ -165,32 +141,15 @@ if not exist "%CORE%" (
 "%CORE%" --exec %*
 "@ | Out-File -FilePath $coreWrapper -Encoding ASCII
 
-        @"
+    @"
 @echo off
 "%~dp0radiusd.cmd" --exec %*
 "@ | Out-File -FilePath $RadiusCmdPath -Encoding ASCII
-    } else {
-        @"
-@echo off
-"%~dp0radiusd.exe" --exec %*
-"@ | Out-File -FilePath $RadiusCmdPath -Encoding ASCII
-    }
 }
 
 Stop-RadiusDaemon
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-
-$upgraded = $false
-try {
-    $upgraded = Install-FromCdn
-} catch {
-    Write-Info "CDN upgrade failed: $($_.Exception.Message)"
-}
-
-if (-not $upgraded) {
-    Install-FromGitHub | Out-Null
-}
-
+Install-FromGitHub
 Install-CliWrappers
 
 $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")

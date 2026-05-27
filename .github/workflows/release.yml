@@ -31,7 +31,7 @@ jobs:
           if [ -z "$LAST_TAG" ]; then
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
           else
-            CHANGES=$(git log "${LAST_TAG}..HEAD" --oneline -- src/ package.json bunfig.toml tsconfig.json)
+            CHANGES=$(git log "${LAST_TAG}..HEAD" --oneline -- src/ package.json bunfig.toml tsconfig.json scripts/ .github/workflows/release.yml)
             if [ -n "$CHANGES" ]; then
               echo "has_changes=true" >> "$GITHUB_OUTPUT"
             else
@@ -84,13 +84,11 @@ jobs:
         run: |
           cd dist
           if [[ "${{ matrix.suffix }}" == "win-x64" ]]; then
-            # Windows: radius.cmd
             cat > radius.cmd << 'EOF'
           @echo off
           "%~dp0radiusd-${{ matrix.suffix }}.exe" --exec %*
           EOF
           else
-            # Unix: radius shell script
             cat > radius << 'EOF'
           #!/bin/sh
           DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -118,14 +116,29 @@ jobs:
 
   release:
     needs: [check-changes, build]
+    if: needs.check-changes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
+
+      - name: Prepare signed release assets
+        env:
+          RADIUS_SIGNING_KEY: ${{ secrets.RADIUS_SIGNING_KEY }}
+        run: |
+          bun install --frozen-lockfile
+          bun run scripts/prepare-release-assets.ts \
+            --artifacts-dir artifacts \
+            --output-dir release-assets \
+            --version "${{ needs.check-changes.outputs.version }}"
 
       - name: Generate release notes
         id: notes
@@ -144,13 +157,15 @@ jobs:
             echo ""
             echo "## Artifacts"
             echo ""
-            echo "| Platform | Archive |"
-            echo "|---|---|"
-            echo "| Linux x64 | radius-linux-x64.tar.gz |"
-            echo "| Linux arm64 | radius-linux-arm64.tar.gz |"
-            echo "| macOS Apple Silicon | radius-darwin-arm64.tar.gz |"
-            echo "| macOS Intel | radius-darwin-x64.tar.gz |"
-            echo "| Windows x64 | radius-win-x64.zip |"
+            echo "Platform archives (tar.gz / zip) plus signed auto-update assets (latest.json, \`*.gz\`, \`*.gz.sig\`, pub.json)."
+            echo ""
+            echo "| Platform | Archive | Auto-update asset |"
+            echo "|---|---|---|"
+            echo "| Linux x64 | radius-linux-x64.tar.gz | linux-x64.gz |"
+            echo "| Linux arm64 | radius-linux-arm64.tar.gz | linux-arm64.gz |"
+            echo "| macOS Apple Silicon | radius-darwin-arm64.tar.gz | darwin-arm64.gz |"
+            echo "| macOS Intel | radius-darwin-x64.tar.gz | darwin-x64.gz |"
+            echo "| Windows x64 | radius-win-x64.zip | win-x64.gz |"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
@@ -160,6 +175,8 @@ jobs:
           tag_name: ${{ needs.check-changes.outputs.version }}
           name: Radius ${{ needs.check-changes.outputs.version }}
           body: ${{ steps.notes.outputs.body }}
-          files: artifacts/*
+          files: |
+            artifacts/*
+            release-assets/*
           draft: false
           prerelease: false

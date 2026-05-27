@@ -4,11 +4,11 @@ set -eu
 # Radius installer / upgrader
 # Usage: curl -fsSL https://radius-ai.pages.dev/install.sh | sh
 #
-# Installs the CDN-based auto-update wrapper (radiusd.sh) and forces an
-# immediate upgrade to the latest release from latest.json.
+# Install scripts are served from Cloudflare Pages.
+# Signed binaries are downloaded from GitHub Releases via the radiusd wrapper.
 
-CDN_BASE="${RADIUS_CDN_BASE:-https://radius-ai.pages.dev}"
-CDN_URL="${RADIUS_CDN_URL:-$CDN_BASE/release}"
+REPO="${RADIUS_GITHUB_REPO:-ihasq/radius}"
+PAGES_BASE="${RADIUS_PAGES_BASE:-https://radius-ai.pages.dev}"
 RADIUS_HOME="${RADIUS_HOME:-$HOME/.radius}"
 INSTALL_DIR="${RADIUS_INSTALL_DIR:-$RADIUS_HOME/bin}"
 
@@ -53,7 +53,6 @@ stop_daemon() {
 }
 
 remove_legacy_binary() {
-  # Legacy installs placed a compiled ELF/Mach-O binary directly at INSTALL_DIR/radiusd.
   if [ ! -f "$INSTALL_DIR/radiusd" ]; then
     return
   fi
@@ -64,15 +63,7 @@ remove_legacy_binary() {
   rm -f "$INSTALL_DIR/radiusd"
 }
 
-install_wrapper() {
-  info "Installing auto-update wrapper to ${INSTALL_DIR}..."
-  mkdir -p "$INSTALL_DIR"
-
-  if ! curl -fsSL "$CDN_BASE/radiusd.sh" -o "$INSTALL_DIR/radiusd"; then
-    error "Failed to download radiusd.sh from $CDN_BASE"
-  fi
-  chmod +x "$INSTALL_DIR/radiusd"
-
+install_cli_wrapper() {
   cat > "$INSTALL_DIR/radius" << 'EOF'
 #!/bin/sh
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -81,9 +72,20 @@ EOF
   chmod +x "$INSTALL_DIR/radius"
 }
 
+install_wrapper() {
+  info "Installing auto-update wrapper to ${INSTALL_DIR}..."
+  mkdir -p "$INSTALL_DIR"
+
+  if ! curl -fsSL "$PAGES_BASE/radiusd.sh" -o "$INSTALL_DIR/radiusd"; then
+    error "Failed to download radiusd.sh from $PAGES_BASE"
+  fi
+  chmod +x "$INSTALL_DIR/radiusd"
+  install_cli_wrapper
+}
+
 force_upgrade() {
-  info "Upgrading to latest release from CDN..."
-  if ! RADIUS_HOME="$RADIUS_HOME" RADIUS_CDN_URL="$CDN_URL" "$INSTALL_DIR/radiusd" upgrade; then
+  info "Upgrading to latest release from GitHub..."
+  if ! RADIUS_HOME="$RADIUS_HOME" RADIUS_GITHUB_REPO="$REPO" "$INSTALL_DIR/radiusd" upgrade; then
     error "Upgrade failed. Check your network connection and try again."
   fi
 }
