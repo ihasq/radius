@@ -1,11 +1,16 @@
 #!/bin/sh
 set -eu
 
-# Radius installer
+# Radius installer / upgrader
 # Usage: curl -fsSL https://radius-ai.pages.dev/install.sh | sh
+#
+# Installs the CDN-based auto-update wrapper (radiusd.sh) and forces an
+# immediate upgrade to the latest release from latest.json.
 
-REPO="ihasq/radius"
-INSTALL_DIR="${RADIUS_INSTALL_DIR:-$HOME/.radius/bin}"
+CDN_BASE="${RADIUS_CDN_BASE:-https://radius-ai.pages.dev}"
+CDN_URL="${RADIUS_CDN_URL:-$CDN_BASE/release}"
+RADIUS_HOME="${RADIUS_HOME:-$HOME/.radius}"
+INSTALL_DIR="${RADIUS_INSTALL_DIR:-$RADIUS_HOME/bin}"
 
 info()  { printf "\033[1;34m[radius]\033[0m %s\n" "$1"; }
 error() { printf "\033[1;31m[radius]\033[0m %s\n" "$1" >&2; exit 1; }
@@ -37,42 +42,50 @@ detect_platform() {
   PLATFORM="${OS}-${ARCH}"
 }
 
-get_latest_version() {
-  VERSION=$(curl -fsSI "https://github.com/${REPO}/releases/latest" | grep -i "^location:" | grep -oE '[^/]+$' | tr -d '\r\n')
-  if [ -z "$VERSION" ]; then
-    error "Failed to fetch latest version from GitHub."
+stop_daemon() {
+  if [ -x "$INSTALL_DIR/radiusd" ]; then
+    RADIUS_HOME="$RADIUS_HOME" "$INSTALL_DIR/radiusd" --exec daemon stop 2>/dev/null || true
+    return
+  fi
+  if [ -x "$RADIUS_HOME/bin/current/core" ]; then
+    RADIUS_HOME="$RADIUS_HOME" "$RADIUS_HOME/bin/current/core" --exec daemon stop 2>/dev/null || true
   fi
 }
 
-download_and_install() {
-  ARCHIVE="radius-${PLATFORM}.tar.gz"
-  URL="https://github.com/${REPO}/releases/download/${VERSION}/${ARCHIVE}"
-  TMPDIR=$(mktemp -d)
-  trap 'rm -rf "$TMPDIR"' EXIT
-
-  info "Downloading Radius ${VERSION} for ${PLATFORM}..."
-  if ! curl -fsSL "$URL" -o "${TMPDIR}/${ARCHIVE}"; then
-    error "Download failed. No release found for ${PLATFORM} at ${VERSION}."
+remove_legacy_binary() {
+  # Legacy installs placed a compiled ELF/Mach-O binary directly at INSTALL_DIR/radiusd.
+  if [ ! -f "$INSTALL_DIR/radiusd" ]; then
+    return
   fi
+  if head -n 1 "$INSTALL_DIR/radiusd" 2>/dev/null | grep -q '^#!/bin/sh'; then
+    return
+  fi
+  info "Removing legacy flat radiusd binary..."
+  rm -f "$INSTALL_DIR/radiusd"
+}
 
-  info "Extracting..."
-  tar xzf "${TMPDIR}/${ARCHIVE}" -C "$TMPDIR"
-
-  info "Installing to ${INSTALL_DIR}..."
+install_wrapper() {
+  info "Installing auto-update wrapper to ${INSTALL_DIR}..."
   mkdir -p "$INSTALL_DIR"
-  cp "${TMPDIR}/radiusd-${PLATFORM}" "${INSTALL_DIR}/radiusd"
-  chmod +x "${INSTALL_DIR}/radiusd"
 
-  # Create radius shell script wrapper
-  cat > "${INSTALL_DIR}/radius" << 'EOF'
+  if ! curl -fsSL "$CDN_BASE/radiusd.sh" -o "$INSTALL_DIR/radiusd"; then
+    error "Failed to download radiusd.sh from $CDN_BASE"
+  fi
+  chmod +x "$INSTALL_DIR/radiusd"
+
+  cat > "$INSTALL_DIR/radius" << 'EOF'
 #!/bin/sh
 DIR="$(cd "$(dirname "$0")" && pwd)"
 exec "$DIR/radiusd" --exec "$@"
 EOF
-  chmod +x "${INSTALL_DIR}/radius"
+  chmod +x "$INSTALL_DIR/radius"
+}
 
-  # Stop existing daemon (if running)
-  "$INSTALL_DIR/radiusd" --exec daemon stop 2>/dev/null || true
+force_upgrade() {
+  info "Upgrading to latest release from CDN..."
+  if ! RADIUS_HOME="$RADIUS_HOME" RADIUS_CDN_URL="$CDN_URL" "$INSTALL_DIR/radiusd" upgrade; then
+    error "Upgrade failed. Check your network connection and try again."
+  fi
 }
 
 setup_path() {
@@ -110,13 +123,16 @@ setup_path() {
 main() {
   check_deps
   detect_platform
-  get_latest_version
-  download_and_install
+  stop_daemon
+  remove_legacy_binary
+  install_wrapper
+  force_upgrade
   setup_path
 
-  info "Radius ${VERSION} installed successfully."
+  info "Radius installed/upgraded successfully."
   info ""
   info "  radius --help"
+  info "  radius upgrade    # force update anytime"
   info ""
   if ! command -v radius >/dev/null 2>&1; then
     info "Restart your shell or run:"
