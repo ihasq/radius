@@ -130,12 +130,23 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Prepare signed release assets
+      - name: Require signing secret
         env:
           RADIUS_SIGNING_KEY: ${{ secrets.RADIUS_SIGNING_KEY }}
         run: |
+          if [ -z "${RADIUS_SIGNING_KEY}" ]; then
+            echo "::error::Repository secret RADIUS_SIGNING_KEY is not configured."
+            echo "Generate locally: bun run scripts/generate-signing-key.ts"
+            echo "Then set the secret: gh secret set RADIUS_SIGNING_KEY < scripts/release/priv.json"
+            exit 1
+          fi
+          printf '%s' "${RADIUS_SIGNING_KEY}" > /tmp/radius-signing-key.json
+
+      - name: Prepare signed release assets
+        run: |
           bun install --frozen-lockfile
-          bun run scripts/prepare-release-assets.ts \
+          RADIUS_SIGNING_KEY_FILE=/tmp/radius-signing-key.json \
+            bun run scripts/prepare-release-assets.ts \
             --artifacts-dir artifacts \
             --output-dir release-assets \
             --version "${{ needs.check-changes.outputs.version }}"

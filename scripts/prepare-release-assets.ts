@@ -10,7 +10,10 @@
  *     --output-dir release-assets \
  *     --version v0.1.0+20260527134508
  *
- * Requires RADIUS_SIGNING_KEY (private JWK JSON) in the environment.
+ * Signing key resolution (first match wins):
+ *   1. RADIUS_SIGNING_KEY env var (GitHub Actions secret)
+ *   2. RADIUS_SIGNING_KEY_FILE path
+ *   3. scripts/release/priv.json (local dev, gitignored)
  */
 
 import AdmZip from "adm-zip";
@@ -56,6 +59,25 @@ function parseArgs(): { artifactsDir: string; outputDir: string; version: string
   return { artifactsDir, outputDir, version };
 }
 
+function loadPrivateKeyJwk(): JsonWebKey {
+  const fromEnv = process.env.RADIUS_SIGNING_KEY?.trim();
+  if (fromEnv) {
+    return JSON.parse(fromEnv) as JsonWebKey;
+  }
+
+  const keyFile =
+    process.env.RADIUS_SIGNING_KEY_FILE ??
+    join(import.meta.dir, "release", "priv.json");
+  if (existsSync(keyFile)) {
+    return JSON.parse(readFileSync(keyFile, "utf-8")) as JsonWebKey;
+  }
+
+  throw new Error(
+    "Signing key not found. Configure GitHub repository secret RADIUS_SIGNING_KEY " +
+      "(private JWK JSON), or run: bun run scripts/generate-signing-key.ts"
+  );
+}
+
 function extractBinary(artifactsDir: string, platform: PlatformDef): Buffer {
   const archivePath = join(artifactsDir, platform.archive);
   if (!existsSync(archivePath)) {
@@ -81,11 +103,7 @@ function extractBinary(artifactsDir: string, platform: PlatformDef): Buffer {
 async function main(): Promise<void> {
   const { artifactsDir, outputDir, version } = parseArgs();
 
-  const signingKeyJson = process.env.RADIUS_SIGNING_KEY;
-  if (!signingKeyJson) {
-    throw new Error("RADIUS_SIGNING_KEY environment variable is required");
-  }
-  const privateKeyJwk = JSON.parse(signingKeyJson) as JsonWebKey;
+  const privateKeyJwk = loadPrivateKeyJwk();
 
   const pubPath = join(import.meta.dir, "release", "pub.json");
   if (!existsSync(pubPath)) {
